@@ -3,6 +3,36 @@
 Utilizing PaddleOCR and a custom Diablo 4 trained recognition model. Outputs item tooltip data in JSON-format.
 
 
+## Example
+
+![item tooltip](https://github.com/mxtsdev/d4-item-tooltip-ocr/assets/58796811/06aa5a7d-23a4-40c3-9d57-1916d3d3d32b)
+
+```json
+{
+   "affixes": [
+      "+22.5% Overpower Damage [22.5]%",
+      "+12.5% Damage to Slowed Enemies [11.5 - 16.5]%",
+      "+14.0% Critical Strike Damage [10.0 - 15.0]%",
+      "+44 Willpower +[41 - 51]",
+      "+7.0% Damage Over Time [5.0 - 10.0]%"
+   ],
+   "aspect": "Core Skills deal an additional 7.0%[x] [6.0 - 8.0]% damage for each active Companion. (Druid Only)",
+   "item_power": "710",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "SHEPHERD'S WOLF'S BITE",
+   "sockets": [],
+   "stats": [
+      "806 Damage Per Second (-1555)",
+      "[586 - 880] Damage per Hit",
+      "1.10 Attacks per Second (Fast Weapon)"
+   ],
+   "type": "Sacred Legendary Mace"
+}
+```
+
+
 ## Installation
 
 - Clone repository
