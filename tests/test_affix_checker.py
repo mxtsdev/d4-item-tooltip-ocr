@@ -1,0 +1,1 @@
+Add test_affix_checker.py for affix_checker.py script
