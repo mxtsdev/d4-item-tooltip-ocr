@@ -41,6 +41,8 @@ Utilizing PaddleOCR and a custom Diablo 4 trained recognition model. Outputs ite
 
 - pip install -r requirements.txt
 
+You will need to install the correct version of PaddlePaddle depending on your environment (CPU/GPU/CUDA version). Please refer to this link:
+https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/en/install/pip/windows-pip_en.html#old-version-anchor-3-INSTALLATION
 
 ## Using
 
