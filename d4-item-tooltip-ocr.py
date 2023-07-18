@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import json
 import re
+import time
 import os
 import tkinter as tk
 import argparse
@@ -17,8 +18,10 @@ class LineEntry():
 		y = [b[1] for b in boxes]
 		self.tl = (min(x), min(y)) #top-left
 		self.br = (max(x), max(y)) #bottom-right
+		self.dx = self.br[0] - self.tl[0]
 		self.dy = self.br[1] - self.tl[1]
 		self.cy = self.tl[1] + int(self.dy / 2.0)
+		self.a = self.dx * self.dy
 
 	@staticmethod
 	def EMPTY():
@@ -38,7 +41,7 @@ class LineCollection():
 		elif isinstance(result, list) and len(result) == 0:
 			self.lines = []
 		else:
-			self.lines = [LineEntry(i, line[1][0], line[0], line[1][1]) for i, line in enumerate(result)]
+			self.lines = list(filter(lambda x : x.a > 150, [LineEntry(i, line[1][0], line[0], line[1][1]) for i, line in enumerate(result)]))
 
 	def __len__(self):
 		return len(self.lines)
@@ -102,9 +105,15 @@ class LineCollection():
 
 # used in debug mode to navigate between images in a directory
 class SimpleDirectoryNavigator():
-	def __init__(self, source_path):
-		self.dir_path = os.path.dirname(source_path)
-		self.current_image_filename = os.path.basename(source_path)
+	def __init__(self, source_path, run_tests_mode=False):
+		self.run_tests_mode = run_tests_mode
+
+		if run_tests_mode == False:
+			self.dir_path = os.path.dirname(source_path)
+			self.current_image_filename = os.path.basename(source_path)
+		else:
+			self.dir_path = source_path
+			self.current_image_filename = None
 
 	def getImagePath(self, offsetFromCurrent = 0):
 		for root, dirs, files in os.walk(self.dir_path):
@@ -122,15 +131,54 @@ class SimpleDirectoryNavigator():
 							index - 1 >= 0 and index - 1 < len(imgs), \
 							index + 1 >= 0 and index + 1 < len(imgs)
 			break
+	
+	def getImagePath_RunTestsMode(self, offsetFromCurrent = 0):
+		def isTestFile(x):
+			if not (x.endswith('.png') or x.endswith('.jpg')):
+				return False
+			
+			filename_without_ext = os.path.splitext(x)[0]
+			json_path = os.path.join(self.dir_path, filename_without_ext + '.json')
+
+			return os.path.isfile(json_path)
+
+		for root, dirs, files in os.walk(self.dir_path):
+			imgs = list(filter(isTestFile, files))
+			for i, file in enumerate(imgs):
+				if self.current_image_filename == None:
+					index = i
+					self.current_image_filename = imgs[index]
+					return os.path.join(self.dir_path, self.current_image_filename), \
+						index - 1 >= 0 and index - 1 < len(imgs), \
+						index + 1 >= 0 and index + 1 < len(imgs)
+
+				if file == self.current_image_filename:
+					index = i + offsetFromCurrent
+					if index >= 0 and index < len(imgs):
+						self.current_image_filename = imgs[index]
+						return os.path.join(self.dir_path, self.current_image_filename), \
+							index - 1 >= 0 and index - 1 < len(imgs), \
+							index + 1 >= 0 and index + 1 < len(imgs)
+					else:
+						return None
+			break
 
 class D4ItemTooltipOCR():
 	def __init__(self):
+		self.ocr = PaddleOCR(
+			lang='en', 
+			use_angle_cls=False, 
+			show_log=False, 
+			det_db_unclip_ratio=2.0, 
+			rec_model_dir='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip',
+			rec_batch_num=10,
+			enable_mkldnn=True)
 		self.img_tmpl_affix = cv2.imread('templates/affix.png')
 		self.img_tmpl_reroll = cv2.imread('templates/enchanted_rerolled.png')
 		self.img_tmpl_aspect = cv2.imread('templates/inprint_aspect.png')
 		self.img_tmpl_wstat = cv2.imread('templates/weapon_stat.png')
 		self.img_tmpl_socket = cv2.imread('templates/socket.png')
-		self.img_tmpl_socket_mask = cv2.imread('templates/socket_mask.png')
+		self.img_tmpl_socket_mask = cv2.imread('templates/socket_mask_new.png')
 		
 		self.templates = {
 				'affix': self.img_tmpl_affix, 
@@ -141,6 +189,14 @@ class D4ItemTooltipOCR():
 				}
 
 	def processImage(self, source_path, find_tooltip=True, debug=False):
+		start_pi = time.time()
+		jsonstr, ocr_deltatime = self.processImage_internal(source_path, find_tooltip, debug)
+		end_pi = time.time()
+		print(f'Total: {end_pi-start_pi:.2f}s, OCR: {ocr_deltatime:.2f}s', end='\n\n')
+
+		return jsonstr
+	
+	def processImage_internal(self, source_path, find_tooltip=True, debug=False):
 		if debug == True:
 			print(f'[Source image: \'{source_path}\']')
 		
@@ -177,11 +233,13 @@ class D4ItemTooltipOCR():
 
 		if find_tooltip == True and found_tooltip != True:
 			print("ERROR: Failed to find tooltip...")
-			return None
+			return None, 0.0
 		else:
 			# use paddle ocr with custom d4 tooltip trained recognition model
-			ocr = PaddleOCR(use_angle_cls=False, lang='en', show_log=False, det_db_unclip_ratio=2.0, rec_model_dir='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip')
-			result = ocr.ocr(tooltip, cls=False)
+			#tooltip = cv2.resize(tooltip, (0,0), fx = 0.5, fy = 0.5)
+			start_ocr = time.time()
+			result = self.ocr.ocr(tooltip, cls=False)
+			end_ocr = time.time()
 
 			if debug == True:
 				# print ocr results
@@ -196,12 +254,12 @@ class D4ItemTooltipOCR():
 			boxes = [line[0] for line in result]
 			txts = [line[1][0] for line in result]
 			scores = [line[1][1] for line in result]
-			ocr_img = draw_ocr(tooltip, boxes, txts, scores, font_path='C:/Windows/fonts/Arial.ttf')
 
 			# use scale invariant template matching to find all symbols denoting different types of tooltip lines
 			data, templmatch_image = scaleInvariantMultiTemplateMatch(tooltip, self.templates, show_log=debug)
 			
 			if debug == True:
+				ocr_img = draw_ocr(tooltip, boxes, txts, scores, font_path='C:/Windows/fonts/Arial.ttf')
 				cv2.imshow('ocr_img', ocr_img)
 				if find_tooltip == True:
 					cv2.imshow('tooltip_countours_img', tooltipcontours_image)
@@ -233,8 +291,10 @@ class D4ItemTooltipOCR():
 			# upgrades follows item power (if it exists)
 			txt_upgrades, *_ = lc.splitat(lc.find('Upgrades:', strip='([\s\d/]+)$'))
 			item_upgrades_current, item_upgrades_max = txt_upgrades.re_get('(?P<upc>\d+)/(?P<upm>\d+)', 'upc', 'upm')
+			if txt_upgrades.index != -1:
+				after.lines.remove(txt_upgrades)
 
-			item = {'affixes': [], 'stats': [], 'sockets': [] }
+			item = {'affixes': [], 'stats': [], 'sockets': [], 'aspect': None }
 			item['name'] = lines_join(' ', [l.txt.strip() for l in item_name])
 			item['type'] = lines_join(' ', [l.txt.strip() for l in item_type])
 			item['item_power'] = item_power
@@ -255,7 +315,7 @@ class D4ItemTooltipOCR():
 				# anything above the first data entry is going to be weapon or armor stats
 				stats = after.takebetween(0, pt1_1[1])
 				for s in stats.lines:
-					item['stats'].append(s.txt)
+					item['stats'].append(lines_join('', [s.txt]))
 
 				# use the position of the next data entry to find the lines belonging to the current data entry
 				if len(data) > i + 1:
@@ -275,7 +335,7 @@ class D4ItemTooltipOCR():
 			
 			# serialize to json
 			jsonstr = json.dumps(item, sort_keys=True, indent=3)
-			return jsonstr
+			return jsonstr, (end_ocr - start_ocr)
 
 # use substitution to fix common errors in recognized text
 def lines_join(separator, iterable):
@@ -285,8 +345,9 @@ def lines_join(separator, iterable):
 	result = re.sub('^0\+', '+', result) # 0+: symbol recognized as 0
 	result = re.sub('%([a-z])', r'% \1', result, flags=re.I) # %a: missing space
 	result = re.sub(r'\b([A-Z])(([a-z]+)([A-Z]+)([a-z]*))\b', lambda m: m.group(1) + m.group(2).lower(), result) # PulveriZe: in word case mismatch
-	result = re.sub('\]([A-Z])', r'] \1', result) # ]A: missing space
-	result = re.sub('\[([\d\.]+)\s+([\d\.]+)\]%', r'[\1 - \2]%', result) # 15.0 -20.0: missing space
+	result = re.sub('\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
+	result = re.sub('\[([\d\.]+)[\s-]+([\d\.]+)\]%', r'[\1 - \2]%', result) # [15.0 -20.0]%: missing space
+	result = re.sub('([\d,]+)(?:\s+-\s+|\s+-|-\s+)([\d,]+)', r'\1 - \2', result) # [800 -1,000]: missing space
 
 	return result
 
@@ -416,6 +477,17 @@ def showItemDataFrame(source_path, find_tooltip=True):
 		else:
 			win.title(f'D4 Item Data')
 			T.delete(1.0, tk.END)
+
+	def saveJson():
+		filename_without_ext = os.path.splitext(dnav.current_image_filename)[0]
+		json_path = os.path.join(dnav.dir_path, filename_without_ext + '.json')
+		print(f'Saving: \'{json_path}\'')
+
+		jsonstr = T.get(1.0, tk.END)
+		with open(json_path, 'w') as outfile:
+			print('Writing:')
+			print(jsonstr)
+			outfile.write(jsonstr)
 	
 	win = tk.Tk()
 	win.geometry("800x600")
@@ -423,6 +495,9 @@ def showItemDataFrame(source_path, find_tooltip=True):
 
 	button_frame = tk.Frame(win)
 	button_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+	button_frame_top = tk.Frame(win)
+	button_frame_top.pack(fill=tk.X, side=tk.TOP)
 
 	scroll_v = tk.Scrollbar(win)
 	scroll_v.pack(side=tk.RIGHT,fill="y")
@@ -445,8 +520,31 @@ def showItemDataFrame(source_path, find_tooltip=True):
 	prev_button.grid(row=0, column=0, sticky=tk.W+tk.E)
 	next_button.grid(row=0, column=1, sticky=tk.W+tk.E)
 
+	status_label = tk.Label(button_frame_top, text="Status")
+	save_button = tk.Button(button_frame_top, text="Save JSON", command = saveJson)
+
+	button_frame_top.columnconfigure(0, weight=4)
+	button_frame_top.columnconfigure(1, weight=1)
+
+	status_label.grid(row=0, column=0, sticky=tk.W+tk.E)
+	save_button.grid(row=0, column=1, sticky=tk.W+tk.E)
+
 	win.after(0, showImage)
 	tk.mainloop()
+
+# run tests in directory (checks all images that have a definition (.json))
+def runTestsInDir(dir_path):
+	dnav = SimpleDirectoryNavigator(dir_path, run_tests_mode=True)
+	it_ocr = D4ItemTooltipOCR()
+
+	print("THIS FEATURE IS NOT FULLY IMPLEMENTED")
+
+	while (t := dnav.getImagePath_RunTestsMode(1)) is not None:
+		path, has_prev, has_next = t
+		print(f"Test path: {path}")
+
+	print("")
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -454,6 +552,7 @@ if __name__ == '__main__':
 	parser.add_argument('--json-output', type=str, default=None, help='output path for item tooltip json data')
 	parser.add_argument('--find-tooltip', default=True, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle find tooltip in source [true/false]')
 	parser.add_argument('--debug', default=False, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle debug mode [true/false]')
+	parser.add_argument('--run-tests-dir', type=str, default=None, help='run tests in directory')
 	opt = parser.parse_args()
 
 	print("")
@@ -471,6 +570,11 @@ if __name__ == '__main__':
 	# use debug mode
 	if opt.debug == True:
 		showItemDataFrame(opt.source_img, opt.find_tooltip)
+		cv2.destroyAllWindows()
+	
+	# run tests mode
+	elif opt.run_tests_dir != None:
+		runTestsInDir(opt.run_tests_dir)
 		cv2.destroyAllWindows()
 
 	# output json data from source
