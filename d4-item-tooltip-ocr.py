@@ -30,7 +30,9 @@ class LineEntry():
 	def re_get(self, pattern: str, *return_group_names, flags = 0):
 		if self.index == -1: return (*[None for gn in return_group_names],)
 
-		m = re.search(pattern, self.txt)
+		m = re.search(pattern, self.txt, flags=flags)
+		if m is None:
+			return (*[None for gn in return_group_names],)
 		results = [m.group(gn) for gn in return_group_names]
 		return (*results,)
 
@@ -271,11 +273,11 @@ class D4ItemTooltipOCR():
 			lc = LineCollection(result)
 
 			# find item power and split on it (item power always exists in the tooltip)
-			txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip='^([\s\d\+]+)'))
-			item_power, item_power_upgraded = txt_item_power.re_get('(?P<ip>\d+)(?:\+(?P<ipu>\d+))?', 'ip', 'ipu', flags=re.I)
+			txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d\+]+)'))
+			item_power, item_power_upgraded = txt_item_power.re_get(r'(?P<ip>\d+)(?:\+(?P<ipu>\d+))?', 'ip', 'ipu', flags=re.I)
 
 			# spit on requires level because nothing below it is of interest
-			txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip='([\s\d]+)$'))
+			txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
 
 			# remove anything after last data entry (socket, aspect or affix)
 			# strips flavor text from our collection
@@ -289,8 +291,8 @@ class D4ItemTooltipOCR():
 			item_type = before #before[len(item_name):]
 
 			# upgrades follows item power (if it exists)
-			txt_upgrades, *_ = lc.splitat(lc.find('Upgrades:', strip='([\s\d/]+)$'))
-			item_upgrades_current, item_upgrades_max = txt_upgrades.re_get('(?P<upc>\d+)/(?P<upm>\d+)', 'upc', 'upm')
+			txt_upgrades, *_ = lc.splitat(lc.find('Upgrades:', strip=r'([\s\d/]+)$'))
+			item_upgrades_current, item_upgrades_max = txt_upgrades.re_get(r'(?P<upc>\d+)/(?P<upm>\d+)', 'upc', 'upm')
 			if txt_upgrades.index != -1:
 				after.lines.remove(txt_upgrades)
 
@@ -341,13 +343,13 @@ class D4ItemTooltipOCR():
 def lines_join(separator, iterable):
 	result = separator.join(iterable)
 
-	result = re.sub('(?<=[a-z])(?:\s+-\s+|\s+-|-\s+)(?=[a-z])', '-', result, flags=re.I) # [a -b]: missing space
-	result = re.sub('^0\+', '+', result) # 0+: symbol recognized as 0
+	result = re.sub(r'(?<=[a-z])(?:\s+-\s+|\s+-|-\s+)(?=[a-z])', '-', result, flags=re.I) # [a -b]: missing space
+	result = re.sub(r'^0\+', '+', result) # 0+: symbol recognized as 0
 	result = re.sub('%([a-z])', r'% \1', result, flags=re.I) # %a: missing space
 	result = re.sub(r'\b([A-Z])(([a-z]+)([A-Z]+)([a-z]*))\b', lambda m: m.group(1) + m.group(2).lower(), result) # PulveriZe: in word case mismatch
-	result = re.sub('\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
-	result = re.sub('\[([\d\.]+)[\s-]+([\d\.]+)\]%', r'[\1 - \2]%', result) # [15.0 -20.0]%: missing space
-	result = re.sub('([\d,]+)(?:\s+-\s+|\s+-|-\s+)([\d,]+)', r'\1 - \2', result) # [800 -1,000]: missing space
+	result = re.sub(r'\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
+	result = re.sub(r'\[([\d\.]+)[\s-]+([\d\.]+)\]%', r'[\1 - \2]%', result) # [15.0 -20.0]%: missing space
+	result = re.sub(r'([\d,]+)(?:\s+-\s+|\s+-|-\s+)([\d,]+)', r'\1 - \2', result) # [800 -1,000]: missing space
 
 	return result
 
