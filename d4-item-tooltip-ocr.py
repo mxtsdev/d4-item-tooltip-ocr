@@ -363,7 +363,33 @@ class D4ItemTooltipOCR():
 		if debug == True:
 			print(f'[Source image: \'{source_path}\']')
 		
+		# Load the source image robustly.  cv2.imread() can return None even when
+		# os.path.isfile() succeeds (for example, if the image cannot be decoded by
+		# the installed OpenCV build).  Try the byte-oriented decoder as a fallback
+		# and emit a useful diagnostic instead of crashing on .shape below.
 		input_image = cv2.imread(source_path)
+		if input_image is None:
+			try:
+				encoded = np.fromfile(source_path, dtype=np.uint8)
+				if encoded.size > 0:
+					input_image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+			except (OSError, ValueError) as exc:
+				print(f"ERROR: Failed to read source image '{source_path}': {exc}", file=sys.stderr)
+
+		if input_image is None:
+			try:
+				size = os.path.getsize(source_path)
+			except OSError:
+				size = 'unknown'
+			print(
+				f"ERROR: Failed to decode source image '{source_path}' (size: {size} bytes).",
+				file=sys.stderr
+			)
+			print(
+				"WARNING: No OCR or tooltip detection was attempted because the source image could not be decoded.",
+				file=sys.stderr
+			)
+			return None, 0.0
 
 		# find the item tooltip
 		found_tooltip = False
@@ -765,6 +791,11 @@ if __name__ == '__main__':
 			print(f'ERROR: Failed to initialize OCR: {exc}', file=sys.stderr)
 			sys.exit(1)
 		jsonstr = it_ocr.processImage(opt.source_img, opt.find_tooltip, debug=False)
+
+		if jsonstr is None:
+			# Keep stdout clean for machine-readable output and make command-line
+			# failures visible to the shell/CI via a non-zero status.
+			sys.exit(1)
 
 		if (opt.json_output):
 			with open(opt.json_output, 'w') as outfile:
