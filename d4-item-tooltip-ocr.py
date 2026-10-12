@@ -394,34 +394,158 @@ class D4ItemTooltipOCR():
 		# find the item tooltip
 		found_tooltip = False
 		if find_tooltip == True:
-			# preprocess input image
+			# Detect the tooltip frame from its blue/cyan border.  The character
+			# panel can have another frame immediately above the tooltip (the
+			# "EQUIPPED" header), so there may be several horizontal candidates.
+			# We select the lowest strong horizontal frame in the upper part of
+			# the screen; internal separators are much less saturated and do not
+			# normally pass this mask.
 			height, width = input_image.shape[:2]
-			hsv = cv2.cvtColor(input_image, cv2.COLOR_BGR2HSV) 
+			hsv = cv2.cvtColor(input_image, cv2.COLOR_BGR2HSV)
 			tmp = cv2.inRange(hsv, np.array([69, 45, 47]), np.array([85, 106, 73]))
-			
-			kernel = np.ones((8,8), np.uint8)
-			tmp = cv2.dilate(tmp, kernel, iterations = 5)
 
-			# find contour most likely to be the tooltip
 			tooltipcontours_image = input_image.copy()
-			contours, hierarchy = cv2.findContours(tmp, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-			for cnt in contours:
-				x, y, w, h = cv2.boundingRect(cnt)
-				if cv2.contourArea(cnt) > 10000 and h > w and w < width * 0.3 and w > width * 0.15:
-					expand = 15
-					tooltip = input_image[y - expand:y + h + expand, x - expand:x + w + expand]
-					found_tooltip = True
 
-					cv2.rectangle(tooltipcontours_image, (x - expand, y - expand), (x + w + expand, y + h + expand), (0, 255, 0), 3)
+			# Find the two long vertical frame bands.
+			column_counts = np.count_nonzero(tmp, axis=0)
+			column_threshold = max(12, int(height * 0.08))
+			vertical_pixels = np.where(column_counts >= column_threshold)[0]
+
+			vertical_groups = []
+			if len(vertical_pixels) > 0:
+				start_x = previous = int(vertical_pixels[0])
+				for x in vertical_pixels[1:]:
+					x = int(x)
+					if x <= previous + 1:
+						previous = x
+					else:
+						vertical_groups.append((start_x, previous, int(column_counts[start_x:previous + 1].max())))
+						start_x = previous = x
+				vertical_groups.append((start_x, previous, int(column_counts[start_x:previous + 1].max())))
+
+			# Evaluate pairs by frame evidence instead of their width as a fraction
+			# of the full screenshot.  That ratio changes dramatically between a
+			# cropped tooltip sample and a full gameplay screenshot.
+			pair = None
+			pair_top_y = None
+			best_pair_score = float('-inf')
+			for i in range(len(vertical_groups)):
+				for j in range(i + 1, len(vertical_groups)):
+					left = vertical_groups[i]
+					right = vertical_groups[j]
+					x_left = (left[0] + left[1]) // 2
+					x_right = (right[0] + right[1]) // 2
+					separation = x_right - x_left
+					# Ignore adjacent marks; actual tooltip side rails are distinct
+					# vertical structures. This is an absolute pixel guard, not a
+					# screen-width percentage.
+					if separation < 80:
+						continue
+
+					left_ys = np.where(np.any(tmp[:, left[0]:left[1] + 1] > 0, axis=1))[0]
+					right_ys = np.where(np.any(tmp[:, right[0]:right[1] + 1] > 0, axis=1))[0]
+					if len(left_ys) == 0 or len(right_ys) == 0:
+						continue
+
+					# The relevant top edge should occur around where both side rails
+					# become active. In full-screen captures, the tooltip can be well
+					# below 25% of the image height, so search relative to the rails,
+					# not within a fixed screen-height band.
+					side_start_y = max(int(left_ys[0]), int(right_ys[0]))
+					row_left = max(0, x_left - 12)
+					row_right = min(width, x_right + 13)
+					row_counts = np.count_nonzero(tmp[:, row_left:row_right], axis=1)
+					row_threshold = max(12, min(int(separation * 0.12), 100))
+					horizontal_pixels = np.where(row_counts >= row_threshold)[0]
+					horizontal_groups = []
+					if len(horizontal_pixels) > 0:
+						start_y = previous_y = int(horizontal_pixels[0])
+						for y in horizontal_pixels[1:]:
+							y = int(y)
+							if y <= previous_y + 1:
+								previous_y = y
+							else:
+								horizontal_groups.append((start_y, previous_y, int(row_counts[start_y:previous_y + 1].max())))
+								start_y = previous_y = y
+						horizontal_groups.append((start_y, previous_y, int(row_counts[start_y:previous_y + 1].max())))
+
+					# The visible horizontal top border does not always begin at the
+					# same y-coordinate as the blue side-rail mask. On dark/gold UI themes,
+					# the side rails can have a few pixels of blue trim below the top edge.
+					# Allow a modest lead-in before the side rails, scaled to the measured
+					# rail separation (not the full screenshot dimensions).
+					search_before = max(32, int(separation * 0.08))
+					search_ahead = max(70, int(separation * 0.20))
+					candidates = [g for g in horizontal_groups
+						if side_start_y - search_before <= g[0] <= side_start_y + search_ahead]
+					if not candidates:
+						continue
+					# Prefer an edge at/just after the side rails begin. When the same
+					# rails continue through the EQUIPPED header, its upper border can also
+					# fall in the expanded search window; choosing that earlier edge would
+					# pull the header into the item crop. Only use a preceding edge when
+					# there is no edge aligned with or below the rail start (as on the newer
+					# gold-framed tooltip where the top border is slightly above blue trim).
+					aligned_or_after = [g for g in candidates if g[0] >= side_start_y - 2]
+					if aligned_or_after:
+						top_edge = min(aligned_or_after, key=lambda g: (g[0], -g[2]))
+					else:
+						top_edge = min(candidates, key=lambda g: (abs(g[0] - side_start_y), -g[2]))
+
+					left_max = int(left[2])
+					right_max = int(right[2])
+					vertical_overlap = max(
+						0,
+						min(int(left_ys[-1]), int(right_ys[-1])) - max(int(left_ys[0]), int(right_ys[0]))
+					)
+					distance_from_rails = top_edge[0] - side_start_y
+					pair_score = (
+						min(left_max, right_max)
+						+ 0.25 * max(left_max, right_max)
+						+ 0.75 * top_edge[2]
+						+ 0.10 * min(vertical_overlap, 500)
+						- 0.25 * distance_from_rails
+					)
+					if pair_score > best_pair_score:
+						best_pair_score = pair_score
+						pair = (x_left, x_right)
+						pair_top_y = top_edge[0]
+
+			if pair is None:
+				if len(vertical_groups) >= 2:
+					print(
+						"WARNING: Tooltip side rails were found, but no top-edge candidate fell within the adaptive search window. Check the screenshot theme/scale.",
+						file=sys.stderr
+					)
 				else:
-					cv2.rectangle(tooltipcontours_image, (x, y), (x + w, y + h), (255, 0, 0), 3)
-			
-			tooltipcontours_image = cv2.resize(tooltipcontours_image, (0,0), fx = 0.5, fy = 0.5)
+					print("WARNING: No strong tooltip frame side bands were detected.", file=sys.stderr)
+
+			if pair is not None and pair_top_y is not None:
+				x_left, x_right = pair
+				inner_margin = max(5, int(round((x_right - x_left) * 0.015)))
+				x1 = max(0, x_left + inner_margin)
+				x2 = min(width, x_right - inner_margin)
+				y1 = max(0, pair_top_y + inner_margin + 2)
+				# Do not assume a fixed tooltip height: effects and wrapped affixes
+				# vary in length. The OCR parser stops at the tooltip's level line.
+				y2 = height
+				if x2 > x1 and y2 > y1:
+					tooltip = input_image[y1:y2, x1:x2]
+					found_tooltip = True
+					if debug == True:
+						print(f'Tooltip frame: x={x_left}:{x_right}, top={pair_top_y}; crop x={x1}:{x2}, y={y1}:{y2}')
+					cv2.rectangle(tooltipcontours_image, (x1, y1), (x2, y2), (0, 255, 0), 3)
+			# Debug image: show the selected side rails used for detection.
+			if pair is not None:
+				cv2.line(tooltipcontours_image, (pair[0], 0), (pair[0], height - 1), (255, 0, 0), 2)
+				cv2.line(tooltipcontours_image, (pair[1], 0), (pair[1], height - 1), (255, 0, 0), 2)
+
+			tooltipcontours_image = cv2.resize(tooltipcontours_image, (0, 0), fx=0.5, fy=0.5)
 		else:
 			tooltip = input_image
 
 		if find_tooltip == True and found_tooltip != True:
-			print("ERROR: Failed to find tooltip...")
+			print("ERROR: Failed to find tooltip...", file=sys.stderr)
 			return None, 0.0
 		else:
 			start_ocr = time.time()
@@ -445,6 +569,47 @@ class D4ItemTooltipOCR():
 			if len(rec_results) != len(filtered):
 				print(f"ERROR: Recognition returned {len(rec_results)} results for {len(filtered)} detected text boxes.", file=sys.stderr)
 				return None, (end_ocr - start_ocr)
+
+			# A full gameplay screenshot includes the tooltip action footer and the
+			# inventory below it. Those regions are outside the item text panel and
+			# should not be included in the OCR crop. Use the recognized Durability
+			# line as a content-based bottom boundary instead of guessing from the
+			# screenshot height. This works for both full-screen and pre-cropped input.
+			durability_hits = []
+			for idx, ((box, _det_score), (text, _rec_score)) in enumerate(zip(filtered, rec_results)):
+				if re.search(r'durab', text, flags=re.I):
+					box_arr = np.asarray(box, dtype=np.float32)
+					if box_arr.ndim == 2 and box_arr.shape[1] >= 2 and box_arr.shape[0] >= 4:
+						line_top = int(np.floor(np.min(box_arr[:, 1])))
+						line_bottom = int(np.ceil(np.max(box_arr[:, 1])))
+						# Ignore spurious matches near the top (e.g. a malformed label).
+						if line_bottom > int(tooltip.shape[0] * 0.20):
+							durability_hits.append((line_bottom, line_top, idx, text))
+
+			if durability_hits:
+				# The bottom-most match is the most likely actual durability row.
+				line_bottom, line_top, _durability_idx, durability_text = max(durability_hits, key=lambda hit: hit[0])
+				line_height = max(1, line_bottom - line_top + 1)
+				bottom_padding = max(8, int(round(line_height * 0.45)))
+				crop_bottom = min(tooltip.shape[0], line_bottom + bottom_padding)
+				if crop_bottom < tooltip.shape[0]:
+					old_height = tooltip.shape[0]
+					tooltip = tooltip[:crop_bottom, :].copy()
+					kept_indices = [
+						i for i, ((box, _det_score), _rec) in enumerate(zip(filtered, rec_results))
+						if int(np.min(np.asarray(box)[:, 1])) < crop_bottom
+					]
+					filtered = [filtered[i] for i in kept_indices]
+					rec_results = [rec_results[i] for i in kept_indices]
+					if debug:
+						print(f'Tooltip crop trimmed after {durability_text!r}: height {old_height} -> {crop_bottom}px')
+			elif debug:
+				# jewelry has no durability; parsing stops at Requires Level anyway
+				print(
+					"WARNING: Could not recognize the Durability line; keeping the detected crop height. "
+					"The OCR image may include the tooltip action footer. Check --debug output if parsing is poor.",
+					file=sys.stderr
+				)
 
 			ocr_lines = [[box.tolist(), [text, rec_score]] for (box, _), (text, rec_score) in zip(filtered, rec_results)]
 			ocr_lines = [line for line in ocr_lines if line[1][0] and line[1][0].strip()]
