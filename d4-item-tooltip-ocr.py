@@ -4,9 +4,13 @@ import json
 import re
 import time
 import os
+import sys
+import math
 import tkinter as tk
 import argparse
-from paddleocr import PaddleOCR, draw_ocr
+from paddleocr import TextDetection
+
+import paddle
 from Levenshtein import ratio
 
 class LineEntry():
@@ -165,30 +169,187 @@ class SimpleDirectoryNavigator():
 						return None
 			break
 
+class LegacyD4Recognizer():
+	"""Recognize text with the legacy D4 PP-OCRv3 static inference model."""
+
+	# ppocr/utils/en_dict.txt order: ASCII 0x30..0x7e, then 0x21..0x2f, then a
+	# space. use_space_char=True appends a second space (the one the model was
+	# trained to emit, as the label encoder maps ' ' to its last index).
+	# CTC blank is index 0, giving 97 output classes.
+	CHARACTER = ''.join(chr(c) for c in range(0x30, 0x7f)) + ''.join(chr(c) for c in range(0x21, 0x30)) + '  '
+
+	def __init__(self, model_dir, batch_size=10, enable_mkldnn=True):
+		self.model_dir = os.path.abspath(model_dir)
+		self.batch_size = max(1, int(batch_size))
+		self.image_shape = (3, 48, 320)
+		model_file = os.path.join(self.model_dir, 'inference.pdmodel')
+		params_file = os.path.join(self.model_dir, 'inference.pdiparams')
+		if not os.path.isfile(model_file):
+			raise FileNotFoundError(f'Legacy D4 recognition model not found: {model_file}')
+		if not os.path.isfile(params_file):
+			raise FileNotFoundError(f'Legacy D4 recognition parameters not found: {params_file}')
+
+		config = paddle.inference.Config(model_file, params_file)
+		config.disable_gpu()
+		if enable_mkldnn:
+			try:
+				config.set_mkldnn_cache_capacity(10)
+				config.enable_mkldnn()
+			except Exception as exc:
+				print(f'WARNING: Could not enable oneDNN for legacy recognizer: {exc}', file=sys.stderr)
+		if hasattr(config, 'enable_new_ir'):
+			try:
+				config.enable_new_ir()
+				config.enable_new_executor()
+			except Exception:
+				pass
+		config.disable_glog_info()
+		self.predictor = paddle.inference.create_predictor(config)
+		self.input_names = list(self.predictor.get_input_names())
+		self.output_names = list(self.predictor.get_output_names())
+		if not self.input_names or not self.output_names:
+			raise RuntimeError(f'Legacy D4 model tensors unavailable (inputs={self.input_names}, outputs={self.output_names})')
+		print(f'Legacy D4 recognizer: input={self.input_names}, outputs={self.output_names}', file=sys.stderr)
+
+	def preprocess(self, img, max_wh_ratio):
+		# Same as PaddleOCR 2.x TextRecognizer.resize_norm_img, which the model
+		# was trained with: the input width grows with the widest crop of the
+		# batch, so long lines are not squeezed into 320px.
+		img_c, img_h, img_w = self.image_shape
+		if img is None or img.size == 0:
+			raise ValueError('Cannot recognize an empty text crop.')
+		img_w = int(img_h * max_wh_ratio)
+		h, w = img.shape[:2]
+		ratio = w / float(max(h, 1))
+		resized_w = min(img_w, max(1, int(math.ceil(img_h * ratio))))
+		resized = cv2.resize(img, (resized_w, img_h))
+		resized = resized.astype('float32').transpose((2, 0, 1)) / 255.0
+		resized = (resized - 0.5) / 0.5
+		padding = np.zeros((img_c, img_h, img_w), dtype=np.float32)
+		padding[:, :, :resized_w] = resized
+		return padding
+
+	@staticmethod
+	def crop_from_quad(image, points):
+		points = np.asarray(points, dtype=np.float32).reshape(4, 2)
+		w = max(1, int(max(np.linalg.norm(points[0] - points[1]), np.linalg.norm(points[2] - points[3]))))
+		h = max(1, int(max(np.linalg.norm(points[0] - points[3]), np.linalg.norm(points[1] - points[2]))))
+		dst = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+		m = cv2.getPerspectiveTransform(points, dst)
+		crop = cv2.warpPerspective(image, m, (w, h), borderMode=cv2.BORDER_REPLICATE, flags=cv2.INTER_CUBIC)
+		if crop.shape[0] / float(max(crop.shape[1], 1)) >= 1.5:
+			crop = np.rot90(crop)
+		return crop
+
+	@classmethod
+	def decode_ctc(cls, output):
+		arr = np.asarray(output)
+		if arr.ndim != 3:
+			raise RuntimeError(f'Expected rank-3 CTC output, got shape {arr.shape}.')
+		idx = arr.argmax(axis=2)
+		prob = arr.max(axis=2)
+		results = []
+		for b in range(arr.shape[0]):
+			chars = []
+			conf = []
+			last = -1
+			for t, token in enumerate(idx[b]):
+				token = int(token)
+				if token == 0:
+					last = token
+					continue
+				if token == last:
+					continue
+				last = token
+				ci = token - 1
+				if 0 <= ci < len(cls.CHARACTER):
+					chars.append(cls.CHARACTER[ci])
+					conf.append(float(prob[b, t]))
+			results.append((''.join(chars), float(np.mean(conf)) if conf else 1.0))
+		return results
+
+	def recognize(self, crops):
+		# Batch crops of similar aspect ratio together (as PaddleOCR 2.x does) so
+		# short lines are not padded out to the width of the longest line.
+		img_c, img_h, img_w = self.image_shape
+		wh_ratios = [c.shape[1] / float(max(c.shape[0], 1)) for c in crops]
+		order = np.argsort(wh_ratios)
+		results = [None] * len(crops)
+		for offset in range(0, len(crops), self.batch_size):
+			chunk = order[offset:offset + self.batch_size]
+			max_wh_ratio = max([img_w / float(img_h)] + [wh_ratios[i] for i in chunk])
+			batch = np.stack([self.preprocess(crops[i], max_wh_ratio) for i in chunk], axis=0).astype(np.float32)
+			in_handle = self.predictor.get_input_handle(self.input_names[0])
+			in_handle.reshape(batch.shape)
+			in_handle.copy_from_cpu(batch)
+			self.predictor.run()
+			outputs = [(name, self.predictor.get_output_handle(name).copy_to_cpu()) for name in self.output_names]
+			ctc_candidates = [(name, value) for name, value in outputs if np.asarray(value).ndim == 3]
+			if not ctc_candidates:
+				raise RuntimeError(f'No rank-3 CTC output found. Outputs: {[(n, np.asarray(v).shape) for n, v in outputs]}')
+			for i, result in zip(chunk, self.decode_ctc(ctc_candidates[0][1])):
+				results[i] = result
+		return results
+
+
 class D4ItemTooltipOCR():
-	def __init__(self):
-		self.ocr = PaddleOCR(
-			lang='en', 
-			use_angle_cls=False, 
-			show_log=False, 
-			det_db_unclip_ratio=2.0, 
-			rec_model_dir='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip',
-			rec_batch_num=10,
-			enable_mkldnn=True)
+	def __init__(self, rec_model_dir='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip', det_model_name='PP-OCRv4_mobile_det'):
+		# PaddleOCR 3.x provides text detection only. The custom D4 recognition
+		# network is a legacy static export, so load it directly via Paddle Inference.
+		# PaddlePaddle 3.3.0/3.3.1 has a CPU oneDNN/PIR bug for some OCR
+		# detection models (ArrayAttribute<DoubleAttribute>). Disable oneDNN for
+		# the PaddleOCR 3.x detector; use the standard CPU inference path instead.
+		self.detector = TextDetection(
+			model_name=det_model_name,
+			device='cpu',
+			enable_mkldnn=False,
+			# box expansion of PaddleOCR 2.x; tighter boxes clip glyphs
+			unclip_ratio=2.0)
+		self.recognizer = LegacyD4Recognizer(rec_model_dir, batch_size=10, enable_mkldnn=True)
 		self.img_tmpl_affix = cv2.imread('templates/affix.png')
 		self.img_tmpl_reroll = cv2.imread('templates/enchanted_rerolled.png')
 		self.img_tmpl_aspect = cv2.imread('templates/inprint_aspect.png')
 		self.img_tmpl_wstat = cv2.imread('templates/weapon_stat.png')
 		self.img_tmpl_socket = cv2.imread('templates/socket.png')
 		self.img_tmpl_socket_mask = cv2.imread('templates/socket_mask_new.png')
-		
 		self.templates = {
-				'affix': self.img_tmpl_affix, 
-				'reroll': self.img_tmpl_reroll, 
-				'aspect': self.img_tmpl_aspect, 
-				'wstat': self.img_tmpl_wstat,
-				'socket': [self.img_tmpl_socket, self.img_tmpl_socket_mask]
-				}
+			'affix': self.img_tmpl_affix,
+			'reroll': self.img_tmpl_reroll,
+			'aspect': self.img_tmpl_aspect,
+			'wstat': self.img_tmpl_wstat,
+			'socket': [self.img_tmpl_socket, self.img_tmpl_socket_mask]
+			}
+
+	@staticmethod
+	def _result_field(result, name, default=None):
+		if hasattr(result, name):
+			return getattr(result, name)
+		try:
+			return result[name]
+		except (KeyError, TypeError, IndexError):
+			return default
+
+	@classmethod
+	def _extract_detection_boxes(cls, result):
+		if result is None:
+			return [], []
+		res = result[0] if isinstance(result, (list, tuple)) and result else result
+		boxes = cls._result_field(res, 'dt_polys', [])
+		scores = cls._result_field(res, 'dt_scores', [])
+		boxes = list(boxes) if boxes is not None else []
+		scores = list(scores) if scores is not None else []
+		return [np.asarray(b, dtype=np.float32) for b in boxes], [float(s) for s in scores]
+
+	@staticmethod
+	def _draw_ocr_debug(image, boxes, txts, scores):
+		out = image.copy()
+		for box, txt, score in zip(boxes, txts, scores):
+			pts = np.asarray(box, dtype=np.int32).reshape(-1, 1, 2)
+			if pts.shape[0] >= 2:
+				cv2.polylines(out, [pts], True, (0, 255, 0), 1)
+			anchor = tuple(pts[0, 0])
+			cv2.putText(out, f'{txt} ({float(score):.2f})', (anchor[0], max(12, anchor[1] - 2)), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 0), 1, cv2.LINE_AA)
+		return out
 
 	def processImage(self, source_path, find_tooltip=True, debug=False):
 		start_pi = time.time()
@@ -237,40 +398,55 @@ class D4ItemTooltipOCR():
 			print("ERROR: Failed to find tooltip...")
 			return None, 0.0
 		else:
-			# use paddle ocr with custom d4 tooltip trained recognition model
-			#tooltip = cv2.resize(tooltip, (0,0), fx = 0.5, fy = 0.5)
 			start_ocr = time.time()
-			result = self.ocr.ocr(tooltip, cls=False)
+			try:
+				det_result = self.detector.predict(tooltip, batch_size=1)
+				det_boxes, det_scores = self._extract_detection_boxes(det_result)
+			except Exception as exc:
+				print(f"ERROR: PaddleOCR 3.x text detection failed: {exc}", file=sys.stderr)
+				return None, (time.time() - start_ocr)
+
+			filtered = [(box, score) for box, score in zip(det_boxes, det_scores) if score >= 0.30 and len(box) == 4]
+			filtered.sort(key=lambda item: (float(np.min(item[0][:, 1])), float(np.min(item[0][:, 0]))))
+			crops = [self.recognizer.crop_from_quad(tooltip, box) for box, _ in filtered]
+			try:
+				rec_results = self.recognizer.recognize(crops)
+			except Exception as exc:
+				print(f"ERROR: Legacy D4 text recognition failed: {exc}", file=sys.stderr)
+				return None, (time.time() - start_ocr)
 			end_ocr = time.time()
 
-			if debug == True:
-				# print ocr results
+			if len(rec_results) != len(filtered):
+				print(f"ERROR: Recognition returned {len(rec_results)} results for {len(filtered)} detected text boxes.", file=sys.stderr)
+				return None, (end_ocr - start_ocr)
+
+			ocr_lines = [[box.tolist(), [text, rec_score]] for (box, _), (text, rec_score) in zip(filtered, rec_results)]
+			ocr_lines = [line for line in ocr_lines if line[1][0] and line[1][0].strip()]
+			if not ocr_lines:
+				print("ERROR: PaddleOCR detected no recognizable text lines.", file=sys.stderr)
+				return None, (end_ocr - start_ocr)
+
+			if debug:
+				boxes = [line[0] for line in ocr_lines]
+				txts = [line[1][0] for line in ocr_lines]
+				scores = [line[1][1] for line in ocr_lines]
 				print('OCR results:')
-				for idx in range(len(result)):
-					res = result[idx]
-					for line in res:
-						print(line)
-				print('') # newline
+				for line in ocr_lines:
+					print(line)
+				print('')
 
-			result = result[0]
-			boxes = [line[0] for line in result]
-			txts = [line[1][0] for line in result]
-			scores = [line[1][1] for line in result]
-
-			# use scale invariant template matching to find all symbols denoting different types of tooltip lines
 			data, templmatch_image = scaleInvariantMultiTemplateMatch(tooltip, self.templates, show_log=debug)
-			
-			if debug == True:
-				ocr_img = draw_ocr(tooltip, boxes, txts, scores, font_path='C:/Windows/fonts/Arial.ttf')
+			if debug:
+				boxes = [line[0] for line in ocr_lines]
+				txts = [line[1][0] for line in ocr_lines]
+				scores = [line[1][1] for line in ocr_lines]
+				ocr_img = self._draw_ocr_debug(tooltip, boxes, txts, scores)
 				cv2.imshow('ocr_img', ocr_img)
 				if find_tooltip == True:
 					cv2.imshow('tooltip_countours_img', tooltipcontours_image)
 				cv2.imshow('template_match_img', templmatch_image)
 
-			# =====================================================
-			# build item tooltip data object for json serialization
-			# =====================================================
-			lc = LineCollection(result)
+			lc = LineCollection(ocr_lines)
 
 			# find item power and split on it (item power always exists in the tooltip)
 			txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d\+]+)'))
@@ -554,6 +730,8 @@ if __name__ == '__main__':
 	parser.add_argument('--json-output', type=str, default=None, help='output path for item tooltip json data')
 	parser.add_argument('--find-tooltip', default=True, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle find tooltip in source [true/false]')
 	parser.add_argument('--debug', default=False, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle debug mode [true/false]')
+	parser.add_argument('--rec-model-dir', type=str, default='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip', help='legacy D4 recognition model directory')
+	parser.add_argument('--det-model-name', type=str, default='PP-OCRv4_mobile_det', help='PaddleOCR 3.x text detection model name')
 	parser.add_argument('--run-tests-dir', type=str, default=None, help='run tests in directory')
 	opt = parser.parse_args()
 
@@ -581,7 +759,11 @@ if __name__ == '__main__':
 
 	# output json data from source
 	else:
-		it_ocr = D4ItemTooltipOCR()
+		try:
+			it_ocr = D4ItemTooltipOCR(opt.rec_model_dir, opt.det_model_name)
+		except Exception as exc:
+			print(f'ERROR: Failed to initialize OCR: {exc}', file=sys.stderr)
+			sys.exit(1)
 		jsonstr = it_ocr.processImage(opt.source_img, opt.find_tooltip, debug=False)
 
 		if (opt.json_output):
