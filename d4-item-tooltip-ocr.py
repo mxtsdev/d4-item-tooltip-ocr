@@ -876,13 +876,15 @@ class D4ItemTooltipOCR():
 def lines_join(separator, iterable):
 	result = separator.join(iterable)
 
-	result = re.sub(r'(?<=[a-z])(?:\s+-\s+|\s+-|-\s+)(?=[a-z])', '-', result, flags=re.I) # [a -b]: missing space
+	result = re.sub(r'(?<=[a-z])(?:\s+-|-\s+)(?=[a-z])', '-', result, flags=re.I) # [a -b]: extra space (but keep 'a - b')
 	result = re.sub(r'^0\+', '+', result) # 0+: symbol recognized as 0
 	result = re.sub('%([a-z])', r'% \1', result, flags=re.I) # %a: missing space
-	result = re.sub(r'%(?=\[)', '% ', result) # 70%[+]: missing space
 	result = re.sub(r'\bt0\b', 'to', result, flags=re.I) # common OCR: t0 -> to
 	result = re.sub(r'\bIess\b', 'less', result, flags=re.I) # common OCR: capital I -> l
-	result = re.sub(r'\b([A-Z])(([a-z]+)([A-Z]+)([a-z]*))\b', lambda m: m.group(1) + m.group(2).lower(), result) # PulveriZe: in word case mismatch
+	result = re.sub(r'(?<=[a-z])[CKOSVWXZ](?=[a-z])', lambda m: m.group(0).lower(), result) # PulveriZe: letters that only differ in size (but keep PocQue)
+	result = re.sub(r'([,:])(?=[a-z])', r'\1 ', result, flags=re.I) # a,b / a:b: missing space
+	result = re.sub(r'(?<=[a-z]) (s|ve|re|ll|t)\b', r"'\1", result) # Druid s / they ve: missing apostrophe
+	result = re.sub(r'(?<=[a-z]{2})(?=\d)', ' ', result, flags=re.I) # with126%: missing space
 	result = re.sub(r'\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
 	result = re.sub(r'\[([\d\.]+)[\s-]+([\d\.]+)\]%', r'[\1 - \2]%', result) # [15.0 -20.0]%: missing space
 	result = re.sub(r'([\d,]+)(?:\s+-\s+|\s+-|-\s+)([\d,]+)', r'\1 - \2', result) # [800 -1,000]: missing space
