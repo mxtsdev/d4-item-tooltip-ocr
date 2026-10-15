@@ -659,12 +659,6 @@ class D4ItemTooltipOCR():
 			# spit on requires level because nothing below it is of interest
 			txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
 
-			# remove anything after last data entry (socket, aspect or affix)
-			# strips flavor text from our collection
-			if (len(data) >= 1):
-				key, pt1, pt2, max_val = data[-1]
-				after = after.takewhile(lambda x : x.tl[1] <= pt2[1] or x.tl[0] >= pt2[0] - int((pt2[0] - pt1[0]) / 2), remove=False)
-
 			# item name is always in uppercase
 			# drop the EQUIPPED banner and small boxes from frame ornaments above the name
 			header_h = np.median([l.dy for l in before.lines]) if before.lines else 0
@@ -694,32 +688,186 @@ class D4ItemTooltipOCR():
 				for a in after.lines:
 					print(f'[cy: {a.cy}]: {a.txt}')
 				print('') # newline
+			# Group the remaining lines into tooltip entries. Every affix, aspect and
+			# socket starts with an icon in a left gutter, and its text (including
+			# wrapped lines) is indented past that gutter. Stats above the entries and
+			# flavor text below them are flush with the left edge. Entry starts are
+			# derived from this layout; template matches only decide the entry kind,
+			# as the icons change too often between game versions to rely on them.
+			ui_lines = ('armory loadout', 'equipped')
+			lines = sorted([l for l in after.lines if l.txt.strip().lower() not in ui_lines], key=lambda l: l.cy)
+			all_lines = [l for l in lc.lines if l.dy > 0]
+			line_h = float(np.median([l.dy for l in all_lines])) if all_lines else 1.0
+			left_x = float(np.percentile([l.tl[0] for l in all_lines], 10)) if all_lines else 0.0
+			indent_x = left_x + 0.6 * line_h
 
-			# fetch lines belonging to any data entries using relative positions
-			for i, d in enumerate(data):
-				key_1, pt1_1, pt2_1, max_val_1 = d
+			def text_x(line):
+				# left edge of the first recognized character (the icon itself is
+				# usually not recognized as text, even if it is inside the box)
+				if line.char_xs:
+					return max(line.tl[0], line.char_xs[0] - 0.25 * line_h)
+				return line.tl[0]
 
-				# anything above the first data entry is going to be weapon or armor stats
-				stats = after.takebetween(0, pt1_1[1])
-				for s in stats.lines:
-					item['stats'].append(lines_join('', [s.txt]))
+			def icon_extent(line, tx):
+				# Look for an icon left of the text: a blob of bright pixels that is
+				# separated from the text by a gap. Thin vertical lines (weapon stat
+				# tree connectors) and characters the recognizer missed (which touch
+				# the text) do not count. Returns the icon's (x_start, x_end) or None.
+				x1, x2 = int(max(0, left_x - 0.3 * line_h)), int(min(tooltip.shape[1], tx + 0.5 * line_h))
+				y1 = int(max(0, line.tl[1] + 0.2 * line.dy))
+				y2 = int(min(tooltip.shape[0], line.br[1] - 0.2 * line.dy))
+				if x2 <= x1 or y2 <= y1:
+					return None
+				ink = np.count_nonzero(tooltip[y1:y2, x1:x2].max(axis=2) > 100, axis=0)
+				runs = []
+				for x in np.flatnonzero(ink):
+					if runs and x - runs[-1][1] <= 0.15 * line_h:
+						runs[-1][1] = x
+					else:
+						runs.append([x, x])
+				text_start = tx + 0.1 * line_h - x1
+				icon = None
+				for start, end in runs:
+					if end >= text_start:
+						break
+					if end - start + 1 >= 0.2 * line_h and ink[start:end + 1].sum() >= 0.03 * line_h * line_h:
+						icon = (x1 + start, x1 + end)
+				return icon
 
-				# use the position of the next data entry to find the lines belonging to the current data entry
-				if len(data) > i + 1:
-					key_2, pt1_2, pt2_2, max_val_2 = data[i + 1]
+			def template_at(line, tx):
+				for key, pt1, pt2, _max_val in data:
+					cy = (pt1[1] + pt2[1]) / 2.0
+					cx = (pt1[0] + pt2[0]) / 2.0
+					if line.tl[1] - 0.3 * line_h <= cy <= line.br[1] + 0.3 * line_h and cx < tx:
+						return key
+				return None
+
+			def glued_icon_token(line):
+				# An icon is sometimes recognized as a single character glued to the
+				# text, such as "gLucky Hit" (aspect star) or "-0.90 Attacks" (weapon
+				# stat tree). The first two characters of a word are at most ~0.67 line
+				# heights apart, while a glued icon is >= 0.75 line heights away.
+				# Returns the index of the first real character if that is the case.
+				if len(line.char_xs) > 1 and line.txt[1] != ' ' and line.char_xs[1] - line.char_xs[0] >= 0.72 * line_h:
+					return 1
+				return None
+
+			def spaced_icon_token(line, next_line):
+				# A short junk token separated by a space ("C) PocQue") in front of
+				# flush-left text. Returns the index of the first real character.
+				m = re.match(r'\s*\S{1,2} +(?=\w)', line.txt)
+				if m is None or m.end() >= len(line.char_xs):
+					return None
+				k = m.end()
+				if line.char_xs[k] - 0.25 * line_h < indent_x:
+					return None
+				token = line.txt[:k].strip()
+				if re.fullmatch(r'["\'(]?[A-Z]?[a-z]+[,.]?|[^\w]*\d[\d\W]*', token):
+					return None
+				# "He is ..." at the start of flavor text has the same shape as "C) PocQue",
+				# so a token with letters or digits also needs an indented next line
+				if not re.search(r'[A-Za-z0-9]', token) or (next_line is not None and text_x(next_line) >= indent_x):
+					return k
+				return None
+
+			item_has_aspect = re.search(r'\b(legendary|unique|mythic)\b', item['type'], flags=re.I) is not None
+
+			def is_socket_text(text):
+				return re.search(r'\bempty\s+socket\b', text, flags=re.I) is not None
+
+			entries = []
+			current = None
+			# drop icons detected as separate (small) text boxes and junk such as a lone "-"
+			lines = [l for l in lines if re.search(r'[A-Za-z0-9]', l.txt) and l.dy >= 0.7 * line_h]
+			for i, l in enumerate(lines):
+				next_line = lines[i + 1] if i + 1 < len(lines) else None
+				txt = l.txt.strip()
+				tx = text_x(l)
+				strip_at = glued_icon_token(l)
+				if strip_at is None and tx < indent_x:
+					strip_at = spaced_icon_token(l, next_line)
+				if strip_at is not None:
+					txt = l.txt[strip_at:].strip()
+					tx = l.char_xs[strip_at] - 0.25 * line_h
+				key = template_at(l, tx)
+				if tx >= indent_x:
+					# the hollow empty socket icon is too dark to be found as an icon
+					icon = icon_extent(l, tx)
+					is_start = key is not None or icon is not None or is_socket_text(txt) or strip_at is not None
 				else:
-					key_2, pt1_2, pt2_2, max_val_2 = None, [0, 9999], [0, 9999], 0.0
+					icon = None
+					is_start = False
 
-				dline = after.takebetween(pt1_1[1], pt2_2[1] - (pt2_2[1] - pt1_2[1]))
-				if key_1 == 'affix' or key_1 == 'reroll':
-					item['affixes'].append(lines_join(' ', [l.txt.strip() for l in dline or after]))
-				elif key_1 == 'wstat':
-					item['stats'].append(lines_join(' ', [l.txt.strip() for l in dline or after]))
-				elif key_1 == 'aspect':
-					item['aspect'] = lines_join(' ', [l.txt.strip() for l in dline or after])
-				elif key_1 == 'socket':
-					item['sockets'].append(lines_join(' ', [l.txt.strip() for l in dline or after]))
-			
+				if debug:
+					icon_w = f'{(icon[1] - icon[0] + 1) / line_h:.2f}h' if icon else '-'
+					pitch = f'{(l.char_xs[1] - l.char_xs[0]) / line_h:.2f}h' if len(l.char_xs) > 1 else '-'
+					print(f'[x: {l.tl[0]:.0f}, text x: {tx:.0f}, indent x: {indent_x:.0f}, start: {is_start}, icon: {icon_w}, first pitch: {pitch}]: {l.txt}')
+
+				if is_start:
+					icon_w = (icon[1] - icon[0] + 1) / line_h if icon else 0.0
+					current = {'key': key, 'lines': [l], 'texts': [txt], 'text_x': tx, 'icon_w': icon_w}
+					entries.append(current)
+				elif tx >= indent_x and current is not None and abs(tx - current['text_x']) < 0.6 * line_h:
+					# wrapped line of the current entry
+					current['lines'].append(l)
+					current['texts'].append(txt)
+				elif not entries:
+					# anything before the first entry is a weapon or armor stat
+					item['stats'].append(lines_join(' ', [txt]))
+				else:
+					# flush-left text after the entries is flavor text
+					break
+
+			def aspect_color_score(entry):
+				# Legendary/Unique effect text is orange, Mythic Unique effect text is
+				# purple. Score the OCR boxes themselves so dark background pixels do
+				# not dominate the result (the Mythic tooltip background is a dark purple).
+				colored_px = total_px = 0
+				for line in entry['lines']:
+					x1, y1 = int(max(0, line.tl[0])), int(max(0, line.tl[1]))
+					x2, y2 = int(min(tooltip.shape[1], line.br[0] + 1)), int(min(tooltip.shape[0], line.br[1] + 1))
+					if x2 <= x1 or y2 <= y1:
+						continue
+					h, sat, val = cv2.split(cv2.cvtColor(tooltip[y1:y2, x1:x2], cv2.COLOR_BGR2HSV))
+					orange = (h >= 3) & (h <= 25) & (sat >= 110) & (val >= 90)
+					purple = (h >= 135) & (h <= 160) & (sat >= 40) & (val >= 140)
+					colored_px += np.count_nonzero(orange | purple)
+					total_px += h.size
+				return colored_px / float(total_px) if total_px else 0.0
+
+			# classify entries: template matches first, then icon size, layout and
+			# color. Icon widths relative to the line height: affix and aspect
+			# markers are ~0.3-0.6, weapon stat tree connectors ~0.75-0.85 and
+			# socketed gems/runes ~0.95-1.1. The aspect follows the affixes, and
+			# sockets follow the aspect.
+			has_aspect_template = any(e['key'] == 'aspect' for e in entries)
+			seen_aspect = seen_affix = False
+			for e in entries:
+				text = lines_join(' ', e['texts'])
+				if e['key'] == 'socket' or is_socket_text(text) or (e['key'] != 'wstat' and e['icon_w'] >= 0.9):
+					kind = 'socket'
+				elif e['key'] == 'wstat' or (not seen_affix and not seen_aspect and e['icon_w'] >= 0.65):
+					kind = 'stat'
+				elif seen_aspect:
+					kind = 'socket'
+				elif e['key'] == 'aspect' or (item_has_aspect and not has_aspect_template and aspect_color_score(e) >= 0.02):
+					kind = 'aspect'
+					seen_aspect = True
+				else:
+					kind = 'affix'
+					seen_affix = True
+
+				if debug:
+					print(f'[{kind} / {e["key"]}, icon: {e["icon_w"]:.2f}h, aspect color: {aspect_color_score(e):.3f}]: {text}')
+
+				if kind == 'aspect':
+					item['aspect'] = text
+				else:
+					item[{'affix': 'affixes', 'stat': 'stats', 'socket': 'sockets'}[kind]].append(text)
+
+			if debug:
+				print('')
+
 			# serialize to json
 			jsonstr = json.dumps(item, sort_keys=True, indent=3)
 			return jsonstr, (end_ocr - start_ocr)
