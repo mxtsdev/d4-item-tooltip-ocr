@@ -567,6 +567,7 @@ class D4ItemTooltipOCR():
 				return None, (time.time() - start_ocr)
 
 			filtered = [(box, score) for box, score in zip(det_boxes, det_scores) if score >= 0.30 and len(box) == 4]
+			filtered = merge_row_fragments(filtered)
 			filtered.sort(key=lambda item: (float(np.min(item[0][:, 1])), float(np.min(item[0][:, 0]))))
 			crops = [self.recognizer.crop_from_quad(tooltip, box) for box, _ in filtered]
 			try:
@@ -872,6 +873,31 @@ class D4ItemTooltipOCR():
 			# serialize to json
 			jsonstr = json.dumps(item, sort_keys=True, indent=3)
 			return jsonstr, (end_ocr - start_ocr)
+
+# The detector sometimes splits one text line into two overlapping boxes, such
+# as "When entering Stealth, c" + "Create a". Replace such pairs with one box
+# covering both, so the line is recognized as a whole. Icons detected as small
+# separate boxes next to the text are left alone.
+def merge_row_fragments(boxes):
+	merged = []
+	for box, score in sorted(boxes, key=lambda item: float(np.min(item[0][:, 0]))):
+		x1, x2 = float(np.min(box[:, 0])), float(np.max(box[:, 0]))
+		y1, y2 = float(np.min(box[:, 1])), float(np.max(box[:, 1]))
+		for i, (mbox, mscore) in enumerate(merged):
+			mx1, mx2 = float(np.min(mbox[:, 0])), float(np.max(mbox[:, 0]))
+			my1, my2 = float(np.min(mbox[:, 1])), float(np.max(mbox[:, 1]))
+			h = min(y2 - y1, my2 - my1)
+			# the left box must be text, not an icon (the right one can be a
+			# smaller fragment, e.g. next to underlined text)
+			if h <= 0 or h < 0.5 * max(y2 - y1, my2 - my1) or mx2 - mx1 < 2 * (my2 - my1):
+				continue
+			if min(y2, my2) - max(y1, my1) >= 0.6 * h and x1 > (mx1 + mx2) / 2.0 and x1 - mx2 < 0.5 * h:
+				nx1, ny1, nx2, ny2 = mx1, min(y1, my1), max(x2, mx2), max(y2, my2)
+				merged[i] = (np.array([[nx1, ny1], [nx2, ny1], [nx2, ny2], [nx1, ny2]], dtype=box.dtype), min(score, mscore))
+				break
+		else:
+			merged.append((box, score))
+	return merged
 
 # use substitution to fix common errors in recognized text
 def lines_join(separator, iterable):
