@@ -611,7 +611,8 @@ class D4ItemTooltipOCR():
 				)
 
 			ocr_lines = [[box.tolist(), [text, rec_score]] for (box, _), (text, rec_score) in zip(filtered, rec_results)]
-			ocr_lines = [line for line in ocr_lines if line[1][0] and line[1][0].strip()]
+			# drop empty and unreliable results (e.g. an icon detected as a separate text box)
+			ocr_lines = [line for line in ocr_lines if line[1][0] and line[1][0].strip() and line[1][1] >= 0.5]
 			if not ocr_lines:
 				print("ERROR: PaddleOCR detected no recognizable text lines.", file=sys.stderr)
 				return None, (end_ocr - start_ocr)
