@@ -6,7 +6,6 @@ import time
 import os
 import sys
 import math
-import tkinter as tk
 import argparse
 from paddleocr import TextDetection
 
@@ -820,6 +819,7 @@ def scaleInvariantMultiTemplateMatch(img_source, img_tmpl_dict, matchTemplateThr
 # create a tkinter window for viewing item tooltip data and
 # navigating between images in the current directory
 def showItemDataFrame(source_path, find_tooltip=True):
+	import tkinter as tk
 	dnav = SimpleDirectoryNavigator(source_path)
 	it_ocr = D4ItemTooltipOCR()
 
