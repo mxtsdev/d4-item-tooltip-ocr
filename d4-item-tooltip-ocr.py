@@ -13,10 +13,11 @@ import paddle
 from Levenshtein import ratio
 
 class LineEntry():
-	def __init__(self, index, txt, boxes, score):
+	def __init__(self, index, txt, boxes, score, char_xs=None):
 		self.index = index
 		self.txt = txt
 		self.score = score
+		self.char_xs = char_xs or [] # approximate x-center of each character in txt
 		x = [b[0] for b in boxes]
 		y = [b[1] for b in boxes]
 		self.tl = (min(x), min(y)) #top-left
@@ -46,7 +47,7 @@ class LineCollection():
 		elif isinstance(result, list) and len(result) == 0:
 			self.lines = []
 		else:
-			self.lines = list(filter(lambda x : x.a > 150, [LineEntry(i, line[1][0], line[0], line[1][1]) for i, line in enumerate(result)]))
+			self.lines = list(filter(lambda x : x.a > 150, [LineEntry(i, line[1][0], line[0], line[1][1], line[2] if len(line) > 2 else None) for i, line in enumerate(result)]))
 
 	def __len__(self):
 		return len(self.lines)
@@ -251,6 +252,7 @@ class LegacyD4Recognizer():
 		for b in range(arr.shape[0]):
 			chars = []
 			conf = []
+			steps = []
 			last = -1
 			for t, token in enumerate(idx[b]):
 				token = int(token)
@@ -264,10 +266,13 @@ class LegacyD4Recognizer():
 				if 0 <= ci < len(cls.CHARACTER):
 					chars.append(cls.CHARACTER[ci])
 					conf.append(float(prob[b, t]))
-			results.append((''.join(chars), float(np.mean(conf)) if conf else 1.0))
+					steps.append(t)
+			results.append((''.join(chars), float(np.mean(conf)) if conf else 1.0, steps))
 		return results
 
 	def recognize(self, crops):
+		# Returns (text, score, char_xs) per crop, where char_xs holds the
+		# approximate horizontal center of each character in crop pixels.
 		# Batch crops of similar aspect ratio together (as PaddleOCR 2.x does) so
 		# short lines are not padded out to the width of the longest line.
 		img_c, img_h, img_w = self.image_shape
@@ -286,8 +291,14 @@ class LegacyD4Recognizer():
 			ctc_candidates = [(name, value) for name, value in outputs if np.asarray(value).ndim == 3]
 			if not ctc_candidates:
 				raise RuntimeError(f'No rank-3 CTC output found. Outputs: {[(n, np.asarray(v).shape) for n, v in outputs]}')
-			for i, result in zip(chunk, self.decode_ctc(ctc_candidates[0][1])):
-				results[i] = result
+			ctc = ctc_candidates[0][1]
+			# each CTC timestep covers a fixed slice of the (resized) input width
+			step_w = batch.shape[3] / float(ctc.shape[1])
+			for i, (text, score, steps) in zip(chunk, self.decode_ctc(ctc)):
+				crop_h, crop_w = crops[i].shape[:2]
+				resized_w = min(batch.shape[3], max(1, int(math.ceil(img_h * wh_ratios[i]))))
+				scale = crop_w / float(resized_w)
+				results[i] = (text, score, [(t + 0.5) * step_w * scale for t in steps])
 		return results
 
 
@@ -575,7 +586,7 @@ class D4ItemTooltipOCR():
 			# line as a content-based bottom boundary instead of guessing from the
 			# screenshot height. This works for both full-screen and pre-cropped input.
 			durability_hits = []
-			for idx, ((box, _det_score), (text, _rec_score)) in enumerate(zip(filtered, rec_results)):
+			for idx, ((box, _det_score), (text, _rec_score, _char_xs)) in enumerate(zip(filtered, rec_results)):
 				if re.search(r'durab', text, flags=re.I):
 					box_arr = np.asarray(box, dtype=np.float32)
 					if box_arr.ndim == 2 and box_arr.shape[1] >= 2 and box_arr.shape[0] >= 4:
@@ -610,7 +621,9 @@ class D4ItemTooltipOCR():
 					file=sys.stderr
 				)
 
-			ocr_lines = [[box.tolist(), [text, rec_score]] for (box, _), (text, rec_score) in zip(filtered, rec_results)]
+			# character positions are relative to the crop, which starts at the box's left edge
+			ocr_lines = [[box.tolist(), [text, rec_score], [float(np.min(box[:, 0])) + x for x in char_xs]]
+				for (box, _), (text, rec_score, char_xs) in zip(filtered, rec_results)]
 			# drop empty and unreliable results (e.g. an icon detected as a separate text box)
 			ocr_lines = [line for line in ocr_lines if line[1][0] and line[1][0].strip() and line[1][1] >= 0.5]
 			if not ocr_lines:
@@ -623,7 +636,7 @@ class D4ItemTooltipOCR():
 				scores = [line[1][1] for line in ocr_lines]
 				print('OCR results:')
 				for line in ocr_lines:
-					print(line)
+					print(line[:2])
 				print('')
 
 			data, templmatch_image = scaleInvariantMultiTemplateMatch(tooltip, self.templates, show_log=debug)
