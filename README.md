@@ -17,6 +17,8 @@ Utilizing PaddleOCR and a custom Diablo 4 trained recognition model. Outputs ite
       "+7.0% Damage Over Time [5.0 - 10.0]%"
    ],
    "aspect": "Core Skills deal an additional 7.0%[x] [6.0 - 8.0]% damage for each active Companion. (Druid Only)",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
    "item_power": "710",
    "item_power_upgraded": null,
    "item_upgrades_current": null,
@@ -28,9 +30,12 @@ Utilizing PaddleOCR and a custom Diablo 4 trained recognition model. Outputs ite
       "[586 - 880] Damage per Hit",
       "1.10 Attacks per Second (Fast Weapon)"
    ],
+   "tempered_affixes": [],
    "type": "Sacred Legendary Mace"
 }
 ```
+
+`affixes` lists all affixes. `greater_affixes`, `tempered_affixes` and `enchanted_affixes` repeat those affixes that have the respective icon.
 
 
 ## Installation

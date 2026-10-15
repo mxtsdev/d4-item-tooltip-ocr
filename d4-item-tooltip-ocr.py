@@ -676,7 +676,7 @@ class D4ItemTooltipOCR():
 			if txt_upgrades.index != -1:
 				after.lines.remove(txt_upgrades)
 
-			item = {'affixes': [], 'stats': [], 'sockets': [], 'aspect': None }
+			item = {'affixes': [], 'greater_affixes': [], 'tempered_affixes': [], 'enchanted_affixes': [], 'stats': [], 'sockets': [], 'aspect': None }
 			item['name'] = lines_join(' ', [l.txt.strip() for l in item_name])
 			# an icon next to the name is sometimes recognized as a trailing 'O' or '%'
 			item['name'] = re.sub(r'(?:\s+\S|[^A-Za-z\s]+)$', '', item['name'])
@@ -816,7 +816,7 @@ class D4ItemTooltipOCR():
 
 				if is_start:
 					icon_w = (icon[1] - icon[0] + 1) / line_h if icon else 0.0
-					current = {'key': key, 'lines': [l], 'texts': [txt], 'text_x': tx, 'icon_w': icon_w}
+					current = {'key': key, 'lines': [l], 'texts': [txt], 'text_x': tx, 'icon_w': icon_w, 'icon': icon}
 					entries.append(current)
 				elif tx >= indent_x and current is not None and abs(tx - current['text_x']) < 0.6 * line_h:
 					# wrapped line of the current entry
@@ -846,6 +846,32 @@ class D4ItemTooltipOCR():
 					total_px += h.size
 				return colored_px / float(total_px) if total_px else 0.0
 
+			def affix_style(entry):
+				# The affix icon tells what kind of affix it is. Median HSV of the
+				# bright pixels of the icon (lower at 1080p):
+				# - regular: small grey diamond, value ~125, no saturation
+				# - greater: bright reddish-white star, slightly saturated
+				# - tempered: bright white claw or axe (depends on the temper), unsaturated
+				# - enchanted: blue circular arrows (also matched by the reroll template)
+				icon = entry['icon']
+				if icon is None:
+					return ('enchanted' if entry['key'] == 'reroll' else None), None
+				line = entry['lines'][0]
+				y1, y2 = int(max(0, line.cy - 0.5 * line_h)), int(min(tooltip.shape[0], line.cy + 0.5 * line_h))
+				patch = cv2.cvtColor(tooltip[y1:y2, icon[0]:icon[1] + 1], cv2.COLOR_BGR2HSV).reshape(-1, 3)
+				bright = patch[patch[:, 2] > 100]
+				if len(bright) == 0:
+					return None, None
+				hue, sat, val = np.median(bright, axis=0)
+				stats = f'hue {hue:.0f}, sat {sat:.0f}, val {val:.0f}'
+				if entry['key'] == 'reroll' or (sat >= 50 and 90 <= hue <= 120):
+					return 'enchanted', stats
+				if val >= 160 and 40 <= sat <= 110 and (hue <= 25 or hue >= 165):
+					return 'greater', stats
+				if val >= 150 and sat < 40:
+					return 'tempered', stats
+				return None, stats
+
 			# classify entries: template matches first, then icon size, layout and
 			# color. Icon widths relative to the line height: affix and aspect
 			# markers are ~0.3-0.6, weapon stat tree connectors ~0.75-0.85 and
@@ -868,13 +894,16 @@ class D4ItemTooltipOCR():
 					kind = 'affix'
 					seen_affix = True
 
+				style, icon_stats = affix_style(e) if kind == 'affix' else (None, None)
 				if debug:
-					print(f'[{kind} / {e["key"]}, icon: {e["icon_w"]:.2f}h, aspect color: {aspect_color_score(e):.3f}]: {text}')
+					print(f'[{kind}{" / " + style if style else ""} / {e["key"]}, icon: {e["icon_w"]:.2f}h ({icon_stats or "-"}), aspect color: {aspect_color_score(e):.3f}]: {text}')
 
 				if kind == 'aspect':
 					item['aspect'] = text
 				else:
 					item[{'affix': 'affixes', 'stat': 'stats', 'socket': 'sockets'}[kind]].append(text)
+				if style:
+					item[style + '_affixes'].append(text)
 
 			if debug:
 				print('')
