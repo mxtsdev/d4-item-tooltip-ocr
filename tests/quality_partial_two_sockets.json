@@ -1,0 +1,33 @@
+{
+   "affixes": [
+      "+397 Weapon Damage",
+      "+5,045 Maximum Life",
+      "x19% Poison Damage Multiplier",
+      "16.1% Resource Cost Reduction",
+      "+96% Poison Damage"
+   ],
+   "aspect": "Your Shadow Clones and Shades also mimic the Imbuements applied to your Skills. Casting an Imbuement Skill increases your Non-physical damage by 110% increased damage for 9 seconds.",
+   "enchanted_affixes": [
+      "+5,045 Maximum Life"
+   ],
+   "greater_affixes": [],
+   "item_power": "900",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "ELDER SPIRIT CROSSBOW OF IMITATED IMBUEMENT",
+   "sockets": [
+      "x18% Poison Damage Multiplier",
+      "x18% Poison Damage Multiplier"
+   ],
+   "stats": [
+      "20 (+20/25) Quality",
+      "4,364 Damage Per Second",
+      "[4,081 - 5,617] Damage per Hit",
+      "0.90 Attacks per Second (Slow)"
+   ],
+   "tempered_affixes": [
+      "+96% Poison Damage"
+   ],
+   "type": "Ancestral Legendary Crossbow"
+}

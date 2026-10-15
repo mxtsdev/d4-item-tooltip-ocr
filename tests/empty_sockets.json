@@ -1,0 +1,25 @@
+{
+   "affixes": [
+      "+102 Dexterity",
+      "+4.8% Attack Speed",
+      "+12.5% Barrier Generation",
+      "+2,493 Cold Resistance"
+   ],
+   "aspect": "This item counts as Jewelry and increases the effect of any gem socketed into the helm by 38%",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "900",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "LEORIC'S CROWN",
+   "sockets": [
+      "Empty Socket",
+      "Empty Socket"
+   ],
+   "stats": [
+      "1,603 Armor (-21.4% Toughness)"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Unique Helm"
+}

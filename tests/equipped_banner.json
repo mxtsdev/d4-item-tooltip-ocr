@@ -1,0 +1,29 @@
+{
+   "affixes": [
+      "+118 Weapon Damage",
+      "+1,590 Maximum Life",
+      "x29% Damage Over Time Multiplier",
+      "x9% Poison Damage Multiplier",
+      "+40% Damage Over Time"
+   ],
+   "aspect": "Imprinted: Enemies take 7.2% increased Damage Over Time for every second they've been affected by a Damage Over Time, up to 10 seconds.",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "850",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "WRITHING FLAMMARD",
+   "sockets": [
+      "x22% Cold Damage Multiplier"
+   ],
+   "stats": [
+      "1,536 Damage Per Second",
+      "[1,141 - 1,653] Damage per Hit",
+      "1.10 Attacks per Second (Fast)"
+   ],
+   "tempered_affixes": [
+      "+40% Damage Over Time"
+   ],
+   "type": "Legendary Sword"
+}

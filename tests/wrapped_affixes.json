@@ -1,0 +1,22 @@
+{
+   "affixes": [
+      "+174 Dexterity",
+      "x39% Critical Strike Damage Multiplier",
+      "+20% Movement Speed for 4 Seconds After Killing an Elite",
+      "+2 to Flurry"
+   ],
+   "aspect": "Shrines will spawn an Elite Pack.",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "900",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "NEMESIS BRACERS",
+   "sockets": [],
+   "stats": [
+      "801 Armor (+0.5% Toughness)"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Unique Gloves"
+}

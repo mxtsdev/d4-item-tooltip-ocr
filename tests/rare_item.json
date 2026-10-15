@@ -1,0 +1,32 @@
+{
+   "affixes": [
+      "+151 Dexterity",
+      "+1,273 Maximum Life",
+      "+1,352 Thorns",
+      "+10.5% Barrier Generation",
+      "+1,209 Maximum Life"
+   ],
+   "aspect": null,
+   "enchanted_affixes": [
+      "+1,273 Maximum Life"
+   ],
+   "greater_affixes": [
+      "+151 Dexterity"
+   ],
+   "item_power": "900",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "AEGIS DOWNFALL",
+   "sockets": [
+      "+40 Dexterity",
+      "+40 Dexterity"
+   ],
+   "stats": [
+      "2,805 Armor"
+   ],
+   "tempered_affixes": [
+      "+1,209 Maximum Life"
+   ],
+   "type": "Ancestral Rare Chest Armor"
+}

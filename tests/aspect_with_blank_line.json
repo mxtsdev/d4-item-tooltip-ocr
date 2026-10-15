@@ -1,0 +1,27 @@
+{
+   "affixes": [
+      "+1,051 Maximum Life",
+      "+20% Movement Speed",
+      "+14.5% Barrier Generation",
+      "+3 to Dash",
+      "+21% Movement Speed"
+   ],
+   "aspect": "Imprinted: Lucky Hit: Up to a 36.0% chance for your Skills to inflict Vampiric Curse on enemies. Enemies afflicted with Vampiric Curse are also Vulnerable. Vampiric Curse's stored souls deal 52.0% increased damage.",
+   "enchanted_affixes": [
+      "+14.5% Barrier Generation"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "ARCHON GREAVES OF ACCURSED TOUCH",
+   "sockets": [],
+   "stats": [
+      "638 Armor"
+   ],
+   "tempered_affixes": [
+      "+21% Movement Speed"
+   ],
+   "type": "Legendary Boots"
+}

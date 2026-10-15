@@ -1,0 +1,26 @@
+{
+   "affixes": [
+      "+89 Dexterity",
+      "+1,105 Maximum Life",
+      "+901 Thorns",
+      "+2,181 Poison Resistance"
+   ],
+   "aspect": "Imprinted: You gain 24.0% Damage Reduction, and Poisoned enemies deal 15% less damage to you.",
+   "enchanted_affixes": [
+      "+2,181 Poison Resistance"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "WARLORD PLATE OF DEBILITATING TOXINS",
+   "sockets": [
+      "+30 Dexterity"
+   ],
+   "stats": [
+      "2,231 Armor"
+   ],
+   "tempered_affixes": [],
+   "type": "Legendary Chest Armor"
+}

@@ -1,0 +1,24 @@
+{
+   "affixes": [
+      "x15% All Damage Multiplier",
+      "x22% Vulnerable Damage Multiplier",
+      "x66% Damage Over Time Multiplier"
+   ],
+   "aspect": "Imprinted: Your Shadow Clones and Shades also mimic the Imbuements applied to your Skills. Casting an Imbuement Skill increases your Non-physical damage by 54% increased damage for 9 seconds.",
+   "enchanted_affixes": [
+      "x66% Damage Over Time Multiplier"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "DOOM GAUNTLETS OF IMITATED IMBUEMENT",
+   "sockets": [],
+   "stats": [
+      "10 (+10/25) Quality",
+      "702 Armor"
+   ],
+   "tempered_affixes": [],
+   "type": "Legendary Gloves"
+}

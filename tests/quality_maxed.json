@@ -1,0 +1,30 @@
+{
+   "affixes": [
+      "+108 Weapon Damage",
+      "+2,373 Maximum Life",
+      "x7% All Damage Multiplier",
+      "x30% Damage Over Time Multiplier",
+      "+51% Damage Over Time"
+   ],
+   "aspect": "Imprinted: You deal 47% increased damage to Vulnerable enemies, and 17% increased damage to Knocked Down enemies.",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "900",
+   "item_power_upgraded": null,
+   "item_upgrades_current": null,
+   "item_upgrades_max": null,
+   "name": "SICA OF MALICE",
+   "sockets": [
+      "x18% Poison Damage Multiplier"
+   ],
+   "stats": [
+      "25 (+25) Quality",
+      "2,202 Damage Per Second",
+      "[1,547 - 2,123] Damage per Hit",
+      "1.20 Attacks per Second (Very Fast)"
+   ],
+   "tempered_affixes": [
+      "+51% Damage Over Time"
+   ],
+   "type": "Ancestral Legendary Dagger"
+}
