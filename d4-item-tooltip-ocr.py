@@ -666,6 +666,9 @@ class D4ItemTooltipOCR():
 				after = after.takewhile(lambda x : x.tl[1] <= pt2[1] or x.tl[0] >= pt2[0] - int((pt2[0] - pt1[0]) / 2), remove=False)
 
 			# item name is always in uppercase
+			# drop the EQUIPPED banner and small boxes from frame ornaments above the name
+			header_h = np.median([l.dy for l in before.lines]) if before.lines else 0
+			before.lines = [l for l in before.lines if l.txt.strip().lower() not in ('equipped', 'armory loadout') and l.dy >= 0.7 * header_h]
 			item_name = before.takewhile(lambda x : x.txt.upper() == x.txt)
 			# item type follows item name and is the last line before item power
 			item_type = before #before[len(item_name):]
@@ -678,6 +681,8 @@ class D4ItemTooltipOCR():
 
 			item = {'affixes': [], 'stats': [], 'sockets': [], 'aspect': None }
 			item['name'] = lines_join(' ', [l.txt.strip() for l in item_name])
+			# an icon next to the name is sometimes recognized as a trailing 'O' or '%'
+			item['name'] = re.sub(r'(?:\s+\S|[^A-Za-z\s]+)$', '', item['name'])
 			item['type'] = lines_join(' ', [l.txt.strip() for l in item_type])
 			item['item_power'] = item_power
 			item['item_power_upgraded'] = item_power_upgraded
