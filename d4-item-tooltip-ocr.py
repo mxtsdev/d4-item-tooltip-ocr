@@ -429,10 +429,9 @@ class D4ItemTooltipOCR():
 
 		return tooltip, ocr_lines, (end_ocr - start_ocr)
 
-# Load the source image robustly.  cv2.imread() can return None even when
-# os.path.isfile() succeeds (for example, if the image cannot be decoded by
-# the installed OpenCV build).  Try the byte-oriented decoder as a fallback
-# and emit a useful diagnostic instead of crashing on .shape below.
+# Load the source image. cv2.imread() can fail on files that exist (for
+# example, paths it cannot open), so fall back to decoding the file's bytes.
+# Returns None, after printing a diagnostic, if the image cannot be decoded.
 def load_image(source_path):
 	input_image = cv2.imread(source_path)
 	if input_image is None:
@@ -461,12 +460,11 @@ def load_image(source_path):
 # Find the item tooltip in a screenshot. Returns the tooltip crop (or None if
 # no tooltip frame was found) and a debug image showing the detected frame.
 def find_tooltip_frame(input_image, debug=False):
-	# Detect the tooltip frame from its blue/cyan border.  The character
+	# Detect the tooltip frame from its blue/cyan border. The character
 	# panel can have another frame immediately above the tooltip (the
 	# "EQUIPPED" header), so there may be several horizontal candidates.
-	# We select the lowest strong horizontal frame in the upper part of
-	# the screen; internal separators are much less saturated and do not
-	# normally pass this mask.
+	# Internal separators are much less saturated and do not normally pass
+	# this mask.
 	height, width = input_image.shape[:2]
 	hsv = cv2.cvtColor(input_image, cv2.COLOR_BGR2HSV)
 	tmp = cv2.inRange(hsv, np.array([69, 45, 47]), np.array([85, 106, 73]))
@@ -530,9 +528,8 @@ def find_frame_rails(mask):
 				start_x = previous = x
 		vertical_groups.append((start_x, previous, int(column_counts[start_x:previous + 1].max())))
 
-	# Evaluate pairs by frame evidence instead of their width as a fraction
-	# of the full screenshot.  That ratio changes dramatically between a
-	# cropped tooltip sample and a full gameplay screenshot.
+	# Score rail pairs by frame evidence. Their width relative to the image
+	# differs a lot between a cropped tooltip and a full screenshot.
 	pair = None
 	pair_top_y = None
 	best_pair_score = float('-inf')
@@ -544,8 +541,7 @@ def find_frame_rails(mask):
 			x_right = (right[0] + right[1]) // 2
 			separation = x_right - x_left
 			# Ignore adjacent marks; actual tooltip side rails are distinct
-			# vertical structures. This is an absolute pixel guard, not a
-			# screen-width percentage.
+			# vertical structures.
 			if separation < 80:
 				continue
 
@@ -554,10 +550,8 @@ def find_frame_rails(mask):
 			if len(left_ys) == 0 or len(right_ys) == 0:
 				continue
 
-			# The relevant top edge should occur around where both side rails
-			# become active. In full-screen captures, the tooltip can be well
-			# below 25% of the image height, so search relative to the rails,
-			# not within a fixed screen-height band.
+			# The top edge is near where both side rails become active. The
+			# tooltip can be anywhere in a full screenshot.
 			side_start_y = max(int(left_ys[0]), int(right_ys[0]))
 			row_left = max(0, x_left - 12)
 			row_right = min(width, x_right + 13)
@@ -579,8 +573,8 @@ def find_frame_rails(mask):
 			# The visible horizontal top border does not always begin at the
 			# same y-coordinate as the blue side-rail mask. On dark/gold UI themes,
 			# the side rails can have a few pixels of blue trim below the top edge.
-			# Allow a modest lead-in before the side rails, scaled to the measured
-			# rail separation (not the full screenshot dimensions).
+			# Allow a modest lead-in before the side rails, scaled to the rail
+			# separation.
 			search_before = max(32, int(separation * 0.08))
 			search_ahead = max(70, int(separation * 0.20))
 			candidates = [g for g in horizontal_groups
@@ -622,11 +616,9 @@ def find_frame_rails(mask):
 # Trim the tooltip image and OCR results after the Durability line. Returns
 # the tooltip image, detection boxes and recognition results.
 def trim_after_durability(tooltip, filtered, rec_results, debug=False):
-	# A full gameplay screenshot includes the tooltip action footer and the
-	# inventory below it. Those regions are outside the item text panel and
-	# should not be included in the OCR crop. Use the recognized Durability
-	# line as a content-based bottom boundary instead of guessing from the
-	# screenshot height. This works for both full-screen and pre-cropped input.
+	# A full screenshot also contains the tooltip action footer and the
+	# inventory below it. The Durability line is the last line of the item
+	# text, so cut the image after it.
 	durability_hits = []
 	for idx, ((box, _det_score), (text, _rec_score, _char_xs)) in enumerate(zip(filtered, rec_results)):
 		if re.search(r'durab', text, flags=re.I):
@@ -671,7 +663,7 @@ def parse_header(lc):
 	txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d\+]+)'))
 	item_power, item_power_upgraded = txt_item_power.re_get(r'(?P<ip>\d+)(?:\+(?P<ipu>\d+))?', 'ip', 'ipu', flags=re.I)
 
-	# spit on requires level because nothing below it is of interest
+	# split on requires level because nothing below it is of interest
 	txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
 
 	# item name is always in uppercase
