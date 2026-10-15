@@ -652,6 +652,8 @@ class D4ItemTooltipOCR():
 				cv2.imshow('template_match_img', templmatch_image)
 
 			lc = LineCollection(ocr_lines)
+			for line in lc.lines:
+				fix_letter_case(line, tooltip)
 
 			# find item power and split on it (item power always exists in the tooltip)
 			txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d\+]+)'))
@@ -876,6 +878,49 @@ class D4ItemTooltipOCR():
 			# serialize to json
 			jsonstr = json.dumps(item, sort_keys=True, indent=3)
 			return jsonstr, (end_ocr - start_ocr)
+
+# Some letters (C, O, S, V, W, X, Z) only differ in size from their lowercase
+# version, and the recognizer often gets the case wrong ("40% Chance", "Curse
+# On enemies"). Decide by comparing the top of the glyph in the image with the
+# top of the letters of known case in the same line. V, W and X are left out,
+# as their center column does not reach the top of the glyph.
+X_HEIGHT_CHARS = set('acemnorsuvwxz')
+CAP_HEIGHT_CHARS = set('ABDEFGHIJKLMNPQRTUYbdfhklt0123456789')
+def fix_letter_case(line, image):
+	if len(line.char_xs) != len(line.txt) or line.dy <= 0:
+		return
+	y1, y2 = int(max(0, line.tl[1])), int(min(image.shape[0], line.br[1]))
+	if y2 - y1 < 4:
+		return
+	patch = image[y1:y2].max(axis=2).astype(np.float32)
+	h, background = y2 - y1, float(np.median(patch[:, int(max(0, line.tl[0])):int(line.br[0])]))
+
+	def glyph_top(cx):
+		col = patch[:, int(max(0, cx - 0.08 * h)):int(cx + 0.08 * h) + 1]
+		if col.size == 0:
+			return None
+		col = col.max(axis=1)
+		rows = np.flatnonzero(col > 0.5 * (col.max() + background))
+		return rows[0] / h if len(rows) else None
+
+	tops = [glyph_top(x) if c.isalnum() else None for c, x in zip(line.txt, line.char_xs)]
+	x_tops = [t for c, t in zip(line.txt, tops) if c in X_HEIGHT_CHARS and t is not None]
+	cap_tops = [t for c, t in zip(line.txt, tops) if c in CAP_HEIGHT_CHARS and t is not None]
+	if not x_tops or not cap_tops:
+		return
+	x_top, cap_top = float(np.median(x_tops)), float(np.median(cap_tops))
+	if x_top - cap_top < 0.08:
+		return
+	chars = list(line.txt)
+	for i, (c, t) in enumerate(zip(chars, tops)):
+		if c in 'CcOoSsZz' and t is not None:
+			word_start = i == 0 or not chars[i - 1].isalpha()
+			if abs(t - x_top) < abs(t - cap_top):
+				chars[i] = c.lower()
+			elif word_start:
+				# capitals never appear inside a word
+				chars[i] = c.upper()
+	line.txt = ''.join(chars)
 
 # The detector sometimes splits one text line into two overlapping boxes, such
 # as "When entering Stealth, c" + "Create a". Replace such pairs with one box
