@@ -947,6 +947,44 @@ def merge_row_fragments(boxes):
 			merged.append((box, score))
 	return merged
 
+def load_vocabulary(path):
+	try:
+		with open(path) as f:
+			return {w.lower() for line in f if not line.startswith('#') for w in line.split()}
+	except OSError:
+		return set()
+
+VOCABULARY = load_vocabulary(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'd4-vocabulary.txt'))
+OCR_DROPPED_CHARS = 'lirtfj' # narrow letters the recognizer tends to drop
+OCR_CONFUSED_CHARS = {'i': 'jl', 'l': 'i', 'j': 'i', 'e': 'f', 'f': 'e', 'a': 'd', 'd': 'a'}
+
+# Correct a word that is not in the vocabulary if exactly one vocabulary word
+# can be reached by inserting a dropped letter or replacing a confused one, or
+# if it consists of two vocabulary words.
+def correct_word(word):
+	lw = word.lower()
+	if len(lw) < 3 or not VOCABULARY or lw in VOCABULARY:
+		return word
+	# OverTime: missing space (but keep names such as PocQue)
+	m = re.fullmatch(r'([A-Z]?[a-z]+)([A-Z][a-z]+)', word)
+	if m and m.group(1).lower() in VOCABULARY and m.group(2).lower() in VOCABULARY:
+		return m.group(1) + ' ' + m.group(2)
+	candidates = {}
+	for i in range(len(lw) + 1):
+		for c in OCR_DROPPED_CHARS:
+			if lw[:i] + c + lw[i:] in VOCABULARY:
+				candidates[lw[:i] + c + lw[i:]] = (i, c, False)
+	for i, ch in enumerate(lw):
+		for c in OCR_CONFUSED_CHARS.get(ch, ''):
+			if lw[:i] + c + lw[i + 1:] in VOCABULARY:
+				candidates[lw[:i] + c + lw[i + 1:]] = (i, c, True)
+	if len(candidates) != 1:
+		return word
+	i, c, replace = next(iter(candidates.values()))
+	if replace:
+		return word[:i] + (c.upper() if word[i].isupper() else c) + word[i + 1:]
+	return word[:i] + (c.upper() if word.isupper() else c) + word[i:]
+
 # use substitution to fix common errors in recognized text
 def lines_join(separator, iterable):
 	result = separator.join(iterable)
@@ -967,6 +1005,7 @@ def lines_join(separator, iterable):
 	result = re.sub(r'\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
 	result = re.sub(r'\[([\d\.]+)[\s-]+([\d\.]+)\]%', r'[\1 - \2]%', result) # [15.0 -20.0]%: missing space
 	result = re.sub(r'([\d,]+)(?:\s+-\s+|\s+-|-\s+)([\d,]+)', r'\1 - \2', result) # [800 -1,000]: missing space
+	result = re.sub(r'[A-Za-z]+', lambda m: correct_word(m.group(0)), result) # Immobiizes / Iewelry: dropped or confused letters
 
 	return result
 

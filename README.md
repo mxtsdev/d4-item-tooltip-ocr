@@ -63,3 +63,6 @@ python d4-item-tooltip-ocr.py --source-img=examples\tooltip_001.jpg --json-outpu
 python d4-item-tooltip-ocr.py --debug=True --source-img=examples\screenshot_001.png
 python d4-item-tooltip-ocr.py --debug=True --source-img=examples\tooltip_001.jpg --find-tooltip=False
 ```
+
+### Recognition errors
+`d4-vocabulary.txt` lists words that appear in item tooltips. A recognized word that is not in the list is corrected if exactly one listed word can be reached by inserting a letter the recognizer tends to drop (such as "Immobiizes") or by replacing a commonly confused one (such as "Iewelry"). Add words to the list if a correct word gets changed into another one.
