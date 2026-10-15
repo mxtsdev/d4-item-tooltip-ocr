@@ -753,6 +753,10 @@ class D4ItemTooltipOCR():
 				# heights apart, while a glued icon is >= 0.75 line heights away.
 				# Returns the index of the first real character if that is the case.
 				if len(line.char_xs) > 1 and line.txt[1] != ' ' and line.char_xs[1] - line.char_xs[0] >= 0.72 * line_h:
+					# a wide letter such as "W" can come close at high resolutions
+					first_word = re.match(r'[A-Za-z]*', line.txt).group(0).lower()
+					if first_word in VOCABULARY and first_word[1:] not in VOCABULARY:
+						return None
 					return 1
 				return None
 
