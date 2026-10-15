@@ -677,6 +677,7 @@ class D4ItemTooltipOCR():
 			item['name'] = lines_join(' ', [l.txt.strip() for l in item_name])
 			# an icon next to the name is sometimes recognized as a trailing 'O' or '%'
 			item['name'] = re.sub(r'(?:\s+\S|[^A-Za-z\s]+)$', '', item['name'])
+			item['name'] = re.sub(r'\bOE\b', 'OF', item['name']) # F recognized as E in the name font
 			item['type'] = lines_join(' ', [l.txt.strip() for l in item_type])
 			item['item_power'] = item_power
 			item['item_power_upgraded'] = item_power_upgraded
@@ -881,8 +882,12 @@ def lines_join(separator, iterable):
 	result = re.sub('%([a-z])', r'% \1', result, flags=re.I) # %a: missing space
 	result = re.sub(r'\bt0\b', 'to', result, flags=re.I) # common OCR: t0 -> to
 	result = re.sub(r'\bIess\b', 'less', result, flags=re.I) # common OCR: capital I -> l
+	result = re.sub(r'(?<=[a-z])0|\b0(?=[a-z]{2})', 'o', result) # 0ver: o recognized as 0
+	result = re.sub(r'(?<=\d),(\d%)', r'.\1', result) # 21,4%: decimal point recognized as comma
+	result = re.sub(r'(?<=[a-z]) +([:,])(?= |$)', r'\1', result) # Imprinted : extra space
 	result = re.sub(r'(?<=[a-z])[CKOSVWXZ](?=[a-z])', lambda m: m.group(0).lower(), result) # PulveriZe: letters that only differ in size (but keep PocQue)
 	result = re.sub(r'([,:])(?=[a-z])', r'\1 ', result, flags=re.I) # a,b / a:b: missing space
+	result = re.sub(r'(?<=[a-z%])\.(?=[A-Z][a-z]|\+\d)', '. ', result) # end.Start / 1%.This / end.+20: missing space (the game itself sometimes omits it)
 	result = re.sub(r'(?<=[a-z]) (s|ve|re|ll|t)\b', r"'\1", result) # Druid s / they ve: missing apostrophe
 	result = re.sub(r'(?<=[a-z]{2})(?=\d)', ' ', result, flags=re.I) # with126%: missing space
 	result = re.sub(r'\]([a-z])', r'] \1', result, flags=re.I) # ]A: missing space
