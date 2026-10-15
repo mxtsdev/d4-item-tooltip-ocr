@@ -69,5 +69,11 @@ python d4-item-tooltip-ocr.py --debug=True --source-img=examples\screenshot_001.
 python d4-item-tooltip-ocr.py --debug=True --source-img=examples\tooltip_001.jpg --find-tooltip=False
 ```
 
+### Run tests
+```
+python d4-item-tooltip-ocr.py --run-tests-dir=tests
+```
+Every image in the directory that has a definition with the same name (`.json`) is processed and compared with it field by field. The images in `tests` are cropped to the item tooltip, so tooltip detection is off by default in this mode (`--find-tooltip=True` turns it on). The debug window's "Save JSON" button writes such a definition for the current image; check and correct it before adding it to the tests.
+
 ### Recognition errors
 `d4-vocabulary.txt` lists words that appear in item tooltips. A recognized word that is not in the list is corrected if exactly one listed word can be reached by inserting a letter the recognizer tends to drop (such as "Immobiizes") or by replacing a commonly confused one (such as "Iewelry"). Add words to the list if a correct word gets changed into another one.

@@ -111,15 +111,9 @@ class LineCollection():
 
 # used in debug mode to navigate between images in a directory
 class SimpleDirectoryNavigator():
-	def __init__(self, source_path, run_tests_mode=False):
-		self.run_tests_mode = run_tests_mode
-
-		if run_tests_mode == False:
-			self.dir_path = os.path.dirname(source_path)
-			self.current_image_filename = os.path.basename(source_path)
-		else:
-			self.dir_path = source_path
-			self.current_image_filename = None
+	def __init__(self, source_path):
+		self.dir_path = os.path.dirname(source_path)
+		self.current_image_filename = os.path.basename(source_path)
 
 	def getImagePath(self, offsetFromCurrent = 0):
 		for root, dirs, files in os.walk(self.dir_path):
@@ -136,37 +130,6 @@ class SimpleDirectoryNavigator():
 						return None, \
 							index - 1 >= 0 and index - 1 < len(imgs), \
 							index + 1 >= 0 and index + 1 < len(imgs)
-			break
-	
-	def getImagePath_RunTestsMode(self, offsetFromCurrent = 0):
-		def isTestFile(x):
-			if not (x.endswith('.png') or x.endswith('.jpg')):
-				return False
-			
-			filename_without_ext = os.path.splitext(x)[0]
-			json_path = os.path.join(self.dir_path, filename_without_ext + '.json')
-
-			return os.path.isfile(json_path)
-
-		for root, dirs, files in os.walk(self.dir_path):
-			imgs = list(filter(isTestFile, files))
-			for i, file in enumerate(imgs):
-				if self.current_image_filename == None:
-					index = i
-					self.current_image_filename = imgs[index]
-					return os.path.join(self.dir_path, self.current_image_filename), \
-						index - 1 >= 0 and index - 1 < len(imgs), \
-						index + 1 >= 0 and index + 1 < len(imgs)
-
-				if file == self.current_image_filename:
-					index = i + offsetFromCurrent
-					if index >= 0 and index < len(imgs):
-						self.current_image_filename = imgs[index]
-						return os.path.join(self.dir_path, self.current_image_filename), \
-							index - 1 >= 0 and index - 1 < len(imgs), \
-							index + 1 >= 0 and index + 1 < len(imgs)
-					else:
-						return None
 			break
 
 class LegacyD4Recognizer():
@@ -300,7 +263,6 @@ class LegacyD4Recognizer():
 				scale = crop_w / float(resized_w)
 				results[i] = (text, score, [(t + 0.5) * step_w * scale for t in steps])
 		return results
-
 
 class D4ItemTooltipOCR():
 	def __init__(self, rec_model_dir='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip', det_model_name='PP-OCRv4_mobile_det'):
@@ -1143,6 +1105,7 @@ def scaleInvariantMultiTemplateMatch(img_source, img_tmpl_dict, matchTemplateThr
 # navigating between images in the current directory
 def showItemDataFrame(source_path, find_tooltip=True):
 	import tkinter as tk
+
 	dnav = SimpleDirectoryNavigator(source_path)
 	it_ocr = D4ItemTooltipOCR()
 
@@ -1224,25 +1187,37 @@ def showItemDataFrame(source_path, find_tooltip=True):
 	win.after(0, showImage)
 	tk.mainloop()
 
-# run tests in directory (checks all images that have a definition (.json))
-def runTestsInDir(dir_path):
-	dnav = SimpleDirectoryNavigator(dir_path, run_tests_mode=True)
+# run tests in directory: every image with a definition (same name, .json) is
+# processed and compared with it field by field
+def runTestsInDir(dir_path, find_tooltip=False):
 	it_ocr = D4ItemTooltipOCR()
+	images = sorted(f for f in os.listdir(dir_path) if f.endswith(('.png', '.jpg'))
+		and os.path.isfile(os.path.join(dir_path, os.path.splitext(f)[0] + '.json')))
 
-	print("THIS FEATURE IS NOT FULLY IMPLEMENTED")
+	failed = []
+	for filename in images:
+		with open(os.path.join(dir_path, os.path.splitext(filename)[0] + '.json')) as f:
+			expected = json.load(f)
+		jsonstr, _ = it_ocr.processImage_internal(os.path.join(dir_path, filename), find_tooltip)
+		actual = json.loads(jsonstr) if jsonstr else {}
+		diffs = [key for key in sorted(expected) if actual.get(key) != expected[key]]
+		print(f'{"FAIL" if diffs else "OK"}: {filename}')
+		for key in diffs:
+			print(f'   {key}:')
+			print(f'      expected: {expected[key]!r}')
+			print(f'      actual:   {actual.get(key)!r}')
+		if diffs:
+			failed.append(filename)
 
-	while (t := dnav.getImagePath_RunTestsMode(1)) is not None:
-		path, has_prev, has_next = t
-		print(f"Test path: {path}")
-
-	print("")
+	print(f'\n{len(images) - len(failed)}/{len(images)} tests passed', end='\n\n')
+	return not failed
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--source-img', type=str, default='examples/screenshot_001.png', help='path to the source image')
 	parser.add_argument('--json-output', type=str, default=None, help='output path for item tooltip json data')
-	parser.add_argument('--find-tooltip', default=True, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle find tooltip in source [true/false]')
+	parser.add_argument('--find-tooltip', default=None, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle find tooltip in source [true/false] (default: true, false for --run-tests-dir)')
 	parser.add_argument('--debug', default=False, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle debug mode [true/false]')
 	parser.add_argument('--rec-model-dir', type=str, default='paddleocr-models/en_PP-OCRv3_rec-d4_tooltip', help='legacy D4 recognition model directory')
 	parser.add_argument('--det-model-name', type=str, default='PP-OCRv4_mobile_det', help='PaddleOCR 3.x text detection model name')
@@ -1255,6 +1230,14 @@ if __name__ == '__main__':
 	print("======================================")
 	print("")
 
+	# run tests mode (the test images are cropped to the tooltip)
+	if opt.run_tests_dir != None:
+		passed = runTestsInDir(opt.run_tests_dir, opt.find_tooltip if opt.find_tooltip is not None else False)
+		sys.exit(0 if passed else 1)
+
+	if opt.find_tooltip is None:
+		opt.find_tooltip = True
+
 	# check that source image exists
 	if os.path.isfile(opt.source_img) == False:
 		print('ERROR: Source image not found...', end='\n\n')
@@ -1266,11 +1249,6 @@ if __name__ == '__main__':
 		showItemDataFrame(opt.source_img, opt.find_tooltip)
 		cv2.destroyAllWindows()
 	
-	# run tests mode
-	elif opt.run_tests_dir != None:
-		runTestsInDir(opt.run_tests_dir)
-		cv2.destroyAllWindows()
-
 	# output json data from source
 	else:
 		try:
