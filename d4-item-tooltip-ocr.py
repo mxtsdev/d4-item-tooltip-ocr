@@ -755,14 +755,17 @@ class D4ItemTooltipOCR():
 				return None
 
 			def spaced_icon_token(line, next_line):
-				# A short junk token separated by a space ("C) PocQue") in front of
-				# flush-left text. Returns the index of the first real character.
-				m = re.match(r'\s*\S{1,2} +(?=\w)', line.txt)
+				# A short junk token separated by a space ("C) PocQue"), or symbols
+				# without one ("@)PocQue"), in front of flush-left text. Returns the
+				# index of the first real character.
+				m = re.match(r'\s*(?:\S{1,2} +|[^\w\s]{1,2})(?=\w)', line.txt)
 				if m is None or m.end() >= len(line.char_xs):
 					return None
 				k = m.end()
 				if line.char_xs[k] - 0.25 * line_h < indent_x:
 					return None
+				if is_socket_text(line.txt[k:]):
+					return k
 				token = line.txt[:k].strip()
 				if re.fullmatch(r'["\'(]?[A-Z]?[a-z]+[,.]?|[^\w]*\d[\d\W]*', token):
 					return None
