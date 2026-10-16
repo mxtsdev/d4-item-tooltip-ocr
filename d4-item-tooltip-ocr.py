@@ -656,12 +656,12 @@ def trim_after_durability(tooltip, filtered, rec_results, debug=False):
 		)
 	return tooltip, filtered, rec_results
 
-# Parse the item header (name, type, item power, upgrades and quality). Returns the item
+# Parse the item header (name, type, item power and quality). Returns the item
 # dict and the collection of lines between item power and Requires Level.
 def parse_header(lc):
 	# find item power and split on it (item power always exists in the tooltip)
-	txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d\+]+)'))
-	item_power, item_power_upgraded = txt_item_power.re_get(r'(?P<ip>\d+)(?:\+(?P<ipu>\d+))?', 'ip', 'ipu', flags=re.I)
+	txt_item_power, before, after = lc.splitat(lc.find('Item Power', strip=r'^([\s\d]+)'))
+	item_power, = txt_item_power.re_get(r'(?P<ip>\d+)', 'ip')
 
 	# split on requires level because nothing below it is of interest
 	txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
@@ -674,13 +674,7 @@ def parse_header(lc):
 	# item type follows item name and is the last line before item power
 	item_type = before #before[len(item_name):]
 
-	# upgrades follows item power (if it exists)
-	txt_upgrades, *_ = lc.splitat(lc.find('Upgrades:', strip=r'([\s\d/]+)$'))
-	item_upgrades_current, item_upgrades_max = txt_upgrades.re_get(r'(?P<upc>\d+)/(?P<upm>\d+)', 'upc', 'upm')
-	if txt_upgrades.index != -1:
-		after.lines.remove(txt_upgrades)
-
-	# quality follows item power on newer tooltips, e.g. '20 (+20/25) Quality'
+	# quality follows item power (if it exists), e.g. '20 (+20/25) Quality'
 	# a maxed item omits the maximum ('25 (+25) Quality')
 	txt_quality, *_ = after.splitat(after.find('Quality', strip=r'^[^A-Za-z]+'))
 	quality, quality_upgraded, quality_max = txt_quality.re_get(r'(?P<q>\d+)\s*\(\D*?\+\s*(?P<qu>\d+)(?:\s*/\s*(?P<qm>\d+))?\s*\)', 'q', 'qu', 'qm')
@@ -696,9 +690,6 @@ def parse_header(lc):
 	item['name'] = re.sub(r'\bOE\b', 'OF', item['name']) # F recognized as E in the name font
 	item['type'] = lines_join(' ', [l.txt.strip() for l in item_type])
 	item['item_power'] = item_power
-	item['item_power_upgraded'] = item_power_upgraded
-	item['item_upgrades_current'] = item_upgrades_current
-	item['item_upgrades_max'] = item_upgrades_max
 	item['quality'] = quality
 	item['quality_upgraded'] = quality_upgraded
 	item['quality_max'] = quality_max
