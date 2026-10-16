@@ -1268,7 +1268,7 @@ def runTestsInDir(dir_path, find_tooltip=False):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--source-img', type=str, default='examples/screenshot_001.png', help='path to the source image')
+	parser.add_argument('--source-img', type=str, default='tests/screenshots/3440x1440_beside_overview_panel.png', help='path to the source image')
 	parser.add_argument('--json-output', type=str, default=None, help='output path for item tooltip json data')
 	parser.add_argument('--find-tooltip', default=None, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle find tooltip in source [true/false] (default: true, false for --run-tests-dir)')
 	parser.add_argument('--debug', default=False, type=lambda x: x.lower() not in ['false', 'no', '0', 'None'], help='toggle debug mode [true/false]')
