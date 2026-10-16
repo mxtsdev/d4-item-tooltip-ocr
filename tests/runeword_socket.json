@@ -16,6 +16,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "COWL OF THE NAMELESS",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [
       "PocQue - Voracious Fortress",
       "Spend 300% of your Maximum Resource. Invoke the Druid's Earthen Bulwark Skill for 3 seconds, granting yourself a Barrier."

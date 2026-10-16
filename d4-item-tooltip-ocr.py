@@ -656,7 +656,7 @@ def trim_after_durability(tooltip, filtered, rec_results, debug=False):
 		)
 	return tooltip, filtered, rec_results
 
-# Parse the item header (name, type, item power and upgrades). Returns the item
+# Parse the item header (name, type, item power, upgrades and quality). Returns the item
 # dict and the collection of lines between item power and Requires Level.
 def parse_header(lc):
 	# find item power and split on it (item power always exists in the tooltip)
@@ -680,6 +680,15 @@ def parse_header(lc):
 	if txt_upgrades.index != -1:
 		after.lines.remove(txt_upgrades)
 
+	# quality follows item power on newer tooltips, e.g. '20 (+20/25) Quality'
+	# a maxed item omits the maximum ('25 (+25) Quality')
+	txt_quality, *_ = after.splitat(after.find('Quality', strip=r'^[^A-Za-z]+'))
+	quality, quality_upgraded, quality_max = txt_quality.re_get(r'(?P<q>\d+)\s*\(\D*?\+\s*(?P<qu>\d+)(?:\s*/\s*(?P<qm>\d+))?\s*\)', 'q', 'qu', 'qm')
+	if quality is not None:
+		after.lines.remove(txt_quality)
+		if quality_max is None:
+			quality_max = quality_upgraded
+
 	item = {'affixes': [], 'greater_affixes': [], 'tempered_affixes': [], 'enchanted_affixes': [], 'stats': [], 'sockets': [], 'aspect': None }
 	item['name'] = lines_join(' ', [l.txt.strip() for l in item_name])
 	# an icon next to the name is sometimes recognized as a trailing 'O' or '%'
@@ -690,6 +699,9 @@ def parse_header(lc):
 	item['item_power_upgraded'] = item_power_upgraded
 	item['item_upgrades_current'] = item_upgrades_current
 	item['item_upgrades_max'] = item_upgrades_max
+	item['quality'] = quality
+	item['quality_upgraded'] = quality_upgraded
+	item['quality_max'] = quality_max
 	return item, after
 
 def is_socket_text(text):

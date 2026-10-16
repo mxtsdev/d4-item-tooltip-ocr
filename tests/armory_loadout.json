@@ -15,6 +15,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "WARLORD PLATE OF DEBILITATING TOXINS",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [
       "+30 Dexterity"
    ],

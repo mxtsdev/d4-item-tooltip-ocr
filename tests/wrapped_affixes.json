@@ -13,6 +13,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "NEMESIS BRACERS",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [],
    "stats": [
       "801 Armor (+0.5% Toughness)"

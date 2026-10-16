@@ -17,9 +17,11 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "ARCHON HELM OF POISONOUS CLOUDS",
+   "quality": "15",
+   "quality_max": "25",
+   "quality_upgraded": "15",
    "sockets": [],
    "stats": [
-      "15 (+15/25) Quality",
       "1,843 Armor"
    ],
    "tempered_affixes": [],

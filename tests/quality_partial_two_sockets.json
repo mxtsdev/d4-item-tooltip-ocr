@@ -16,12 +16,14 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "ELDER SPIRIT CROSSBOW OF IMITATED IMBUEMENT",
+   "quality": "20",
+   "quality_max": "25",
+   "quality_upgraded": "20",
    "sockets": [
       "x18% Poison Damage Multiplier",
       "x18% Poison Damage Multiplier"
    ],
    "stats": [
-      "20 (+20/25) Quality",
       "4,364 Damage Per Second",
       "[4,081 - 5,617] Damage per Hit",
       "0.90 Attacks per Second (Slow)"

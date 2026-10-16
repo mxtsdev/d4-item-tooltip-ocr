@@ -14,9 +14,11 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "DOOM GAUNTLETS OF IMITATED IMBUEMENT",
+   "quality": "10",
+   "quality_max": "25",
+   "quality_upgraded": "10",
    "sockets": [],
    "stats": [
-      "10 (+10/25) Quality",
       "702 Armor"
    ],
    "tempered_affixes": [],

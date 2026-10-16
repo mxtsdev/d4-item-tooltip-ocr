@@ -14,6 +14,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "CARNAGE IRON RECURVE OF VIGOR",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [],
    "stats": [
       "3,452 Damage Per Second",

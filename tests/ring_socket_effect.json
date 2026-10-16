@@ -15,6 +15,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "PAREIDOLIC RING OF ALCHEMICAL ADVANTAGE",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [
       "Your kills absorb a soul for 10 seconds. Each soul increases your damage by 1.5% but increases your damage taken by 1%. This effect stacks up to 200 times, but does not refresh. +20 All Stats"
    ],

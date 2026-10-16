@@ -14,11 +14,13 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "SICA OF MALICE",
+   "quality": "25",
+   "quality_max": "25",
+   "quality_upgraded": "25",
    "sockets": [
       "x18% Poison Damage Multiplier"
    ],
    "stats": [
-      "25 (+25) Quality",
       "2,202 Damage Per Second",
       "[1,547 - 2,123] Damage per Hit",
       "1.20 Attacks per Second (Very Fast)"

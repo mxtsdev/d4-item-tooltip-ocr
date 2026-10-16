@@ -15,6 +15,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "STONE OF JORDAN",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [],
    "stats": [
       "173 All Resist"

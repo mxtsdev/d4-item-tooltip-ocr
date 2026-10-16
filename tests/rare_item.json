@@ -18,6 +18,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "AEGIS DOWNFALL",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [
       "+40 Dexterity",
       "+40 Dexterity"

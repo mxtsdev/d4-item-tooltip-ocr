@@ -13,6 +13,9 @@
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "LEORIC'S CROWN",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [
       "Empty Socket",
       "Empty Socket"

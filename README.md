@@ -24,6 +24,9 @@ Utilizing PaddleOCR and a custom Diablo 4 trained recognition model. Outputs ite
    "item_upgrades_current": null,
    "item_upgrades_max": null,
    "name": "SHEPHERD'S WOLF'S BITE",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
    "sockets": [],
    "stats": [
       "806 Damage Per Second (-1555)",
