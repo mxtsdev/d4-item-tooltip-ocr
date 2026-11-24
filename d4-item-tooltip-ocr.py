@@ -664,7 +664,17 @@ def parse_header(lc):
 	item_power, = txt_item_power.re_get(r'(?P<ip>\d+)', 'ip')
 
 	# split on requires level because nothing below it is of interest
-	txt_requires_level, after, tmp1 = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
+	txt_requires_level, before_requires_level, _ = after.splitat(after.find('Requires Level', strip=r'([\s\d]+)$'))
+	if txt_requires_level.index != -1:
+		after = before_requires_level
+	else:
+		# A tooltip with a "Scroll Down" hint covers its last visible line. 
+		# Keep the lines above the hint's bottom edge (including the covered one) 
+		# and drop the tooltip action footer below it ("Unequip", "Link", ...).
+		txt_scroll_down, *_ = after.splitat(after.find('Scroll Down', score_cutoff=0.8))
+		if txt_scroll_down.index != -1:
+			print("WARNING: The tooltip is cut off at the bottom (\"Scroll Down\"); the lines below it are missing.", file=sys.stderr)
+			after = LineCollection([l for l in after.lines if l is not txt_scroll_down and l.tl[1] < txt_scroll_down.br[1]])
 
 	# item name is always in uppercase
 	# drop the EQUIPPED banner and small boxes from frame ornaments above the name
@@ -795,7 +805,7 @@ class TooltipLayout():
 	# icon_w and icon).
 	def group_entries(self, lines, debug=False):
 		line_h, indent_x = self.line_h, self.indent_x
-		ui_lines = ('armory loadout', 'equipped')
+		ui_lines = ('armory loadout', 'equipped', 'transfigured')
 		lines = sorted([l for l in lines if l.txt.strip().lower() not in ui_lines], key=lambda l: l.cy)
 
 		stats = []
@@ -847,6 +857,8 @@ class TooltipLayout():
 		# Legendary/Unique effect text is orange, Mythic Unique effect text is
 		# purple. Score the OCR boxes themselves so dark background pixels do
 		# not dominate the result (the Mythic tooltip background is a dark purple).
+		# Lossy screenshots (WebP, JPEG) wash out the thin orange text to a
+		# saturation of ~65-90, while white affix text stays below the threshold.
 		tooltip = self.tooltip
 		colored_px = total_px = 0
 		for line in entry['lines']:
@@ -855,7 +867,7 @@ class TooltipLayout():
 			if x2 <= x1 or y2 <= y1:
 				continue
 			h, sat, val = cv2.split(cv2.cvtColor(tooltip[y1:y2, x1:x2], cv2.COLOR_BGR2HSV))
-			orange = (h >= 3) & (h <= 25) & (sat >= 110) & (val >= 90)
+			orange = (h >= 3) & (h <= 25) & (sat >= 70) & (val >= 90)
 			purple = (h >= 135) & (h <= 160) & (sat >= 40) & (val >= 140)
 			colored_px += np.count_nonzero(orange | purple)
 			total_px += h.size
@@ -867,7 +879,10 @@ class TooltipLayout():
 		# - regular: small grey diamond, value ~125, no saturation
 		# - greater: bright reddish-white star, slightly saturated
 		# - tempered: bright white claw or axe (depends on the temper), unsaturated
-		# - enchanted: blue circular arrows (also matched by the reroll template)
+		#   (sat ~8)
+		# - enchanted: blue circular arrows (also matched by the reroll template),
+		#   sat ~150, but only ~40 and darker in lossy screenshots (WebP, JPEG)
+		# - transfigured: pale yellow die (sat ~27), counts as a regular affix
 		icon = entry['icon']
 		if icon is None:
 			return ('enchanted' if entry['key'] == 'reroll' else None), None
@@ -879,11 +894,11 @@ class TooltipLayout():
 			return None, None
 		hue, sat, val = np.median(bright, axis=0)
 		stats = f'hue {hue:.0f}, sat {sat:.0f}, val {val:.0f}'
-		if entry['key'] == 'reroll' or (sat >= 50 and 90 <= hue <= 120):
+		if entry['key'] == 'reroll' or (sat >= 30 and 90 <= hue <= 120):
 			return 'enchanted', stats
 		if val >= 160 and 40 <= sat <= 110 and (hue <= 25 or hue >= 165):
 			return 'greater', stats
-		if val >= 150 and sat < 40:
+		if val >= 150 and sat < 20:
 			return 'tempered', stats
 		return None, stats
 
