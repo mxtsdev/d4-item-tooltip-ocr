@@ -1,0 +1,25 @@
+{
+   "affixes": [
+      "+5,500 Maximum Life",
+      "+2,370 Life On Hit"
+   ],
+   "aspect": null,
+   "enchanted_affixes": [],
+   "greater_affixes": [
+      "+5,500 Maximum Life",
+      "+2,370 Life On Hit"
+   ],
+   "item_power": "900",
+   "name": "CARNAGE IRON RECURVE OF VIGOR",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [],
+   "stats": [
+      "3,452 Damage Per Second",
+      "[2,511 - 3,767] Damage per Hit",
+      "1.10 Attacks per Second (Fast)"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Magic Bow"
+}

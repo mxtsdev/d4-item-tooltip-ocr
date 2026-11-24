@@ -1,0 +1,29 @@
+{
+   "affixes": [
+      "+137 Dexterity",
+      "x55% Damage Over Time Multiplier",
+      "x22% Poison Damage Multiplier",
+      "+2 to All Skills",
+      "+33% Damage Over Time"
+   ],
+   "aspect": "Imprinted: You deal 60% increased Summon damage.",
+   "enchanted_affixes": [
+      "+2 to All Skills"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "name": "HELLBENT COMMANDER DEATHLING'S EYELET",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [
+      "You deal 30% increased damage, but lose 100% Critical Strike Chance. +250 Resistance to All Elements"
+   ],
+   "stats": [
+      "157 All Resist"
+   ],
+   "tempered_affixes": [
+      "+33% Damage Over Time"
+   ],
+   "type": "Legendary Amulet"
+}

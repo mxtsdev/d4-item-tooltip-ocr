@@ -1,0 +1,26 @@
+{
+   "affixes": [
+      "+98 Dexterity",
+      "+1,207 Maximum Life",
+      "+1,620 Armor",
+      "+15.0% Barrier Generation"
+   ],
+   "aspect": "Imprinted: When hit while not Healthy, you form a protective bubble that grants all Players inside Immune. The bubble lasts for 4.0 seconds and can only form once every 90 seconds.",
+   "enchanted_affixes": [
+      "+15.0% Barrier Generation"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "name": "PROTECTING ARCHON FAULDS",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [
+      "+60 Dexterity"
+   ],
+   "stats": [
+      "1,594 Armor"
+   ],
+   "tempered_affixes": [],
+   "type": "Legendary Pants"
+}

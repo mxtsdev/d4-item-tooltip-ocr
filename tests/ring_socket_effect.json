@@ -1,0 +1,26 @@
+{
+   "affixes": [
+      "+241 Life on Kill",
+      "x13% Vulnerable Damage Multiplier",
+      "x24% Damage Over Time Multiplier",
+      "x7% Poison Damage Multiplier"
+   ],
+   "aspect": "Imprinted: Dealing Non-Physical damage increases your Attack Speed and Lucky Hit Chance by 4.1% for 8 seconds, up to 41.0%.",
+   "enchanted_affixes": [
+      "x7% Poison Damage Multiplier"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "name": "PAREIDOLIC RING OF ALCHEMICAL ADVANTAGE",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [
+      "Your kills absorb a soul for 10 seconds. Each soul increases your damage by 1.5% but increases your damage taken by 1%. This effect stacks up to 200 times, but does not refresh. +20 All Stats"
+   ],
+   "stats": [
+      "118 All Resist"
+   ],
+   "tempered_affixes": [],
+   "type": "Legendary Ring"
+}

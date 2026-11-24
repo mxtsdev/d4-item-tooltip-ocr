@@ -1,0 +1,26 @@
+{
+   "affixes": [
+      "+138 Dexterity",
+      "+2,030 Maximum Life",
+      "+2,818 Poison Resistance",
+      "+2 to Poison Imbuement"
+   ],
+   "aspect": "When entering Stealth, create a cloud that deals 29,113 Poison damage and Immobilizes enemies over 6 seconds. Poisoned enemies deal 10% less damage to you.",
+   "enchanted_affixes": [
+      "+2 to Poison Imbuement"
+   ],
+   "greater_affixes": [
+      "+2,030 Maximum Life"
+   ],
+   "item_power": "900",
+   "name": "ARCHON HELM OF POISONOUS CLOUDS",
+   "quality": "15",
+   "quality_max": "25",
+   "quality_upgraded": "15",
+   "sockets": [],
+   "stats": [
+      "1,843 Armor"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Legendary Helm"
+}

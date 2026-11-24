@@ -1,0 +1,30 @@
+{
+   "affixes": [
+      "+94 Dexterity",
+      "+1,205 Maximum Life",
+      "6.5% Cooldown Reduction",
+      "+2 to Imbuement Skills",
+      "+1,459 Maximum Life"
+   ],
+   "aspect": "Lucky Hit: Imbued Skills have up to a 40% chance to trigger a large explosion, dealing 75% of the damage dealt and applying the Imbuement effect to each enemy it hits with 126% Potency.",
+   "enchanted_affixes": [
+      "+1,205 Maximum Life"
+   ],
+   "greater_affixes": [],
+   "item_power": "850",
+   "name": "COWL OF THE NAMELESS",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [
+      "PocQue - Voracious Fortress",
+      "Spend 300% of your Maximum Resource. Invoke the Druid's Earthen Bulwark Skill for 3 seconds, granting yourself a Barrier."
+   ],
+   "stats": [
+      "1,275 Armor"
+   ],
+   "tempered_affixes": [
+      "+1,459 Maximum Life"
+   ],
+   "type": "Unique Helm"
+}

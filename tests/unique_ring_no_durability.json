@@ -1,0 +1,24 @@
+{
+   "affixes": [
+      "+109 Dexterity",
+      "x22% Damage Over Time Multiplier",
+      "12.3% Resource Generation",
+      "+2 to All Skills"
+   ],
+   "aspect": "Your Resistances are each equal to your highest, and you deal 20% more damage of that Element.",
+   "enchanted_affixes": [
+      "x22% Damage Over Time Multiplier"
+   ],
+   "greater_affixes": [],
+   "item_power": "900",
+   "name": "STONE OF JORDAN",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [],
+   "stats": [
+      "173 All Resist"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Unique Ring"
+}

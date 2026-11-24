@@ -1,0 +1,22 @@
+{
+   "affixes": [
+      "+121 Dexterity",
+      "+1,450 Maximum Life",
+      "+4 Energy Regeneration",
+      "+3 to Caltrops"
+   ],
+   "aspect": "Evading leaves behind Caltrops. Caltrops gain 50% increased Size and deal 117% increased damage.",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "900",
+   "name": "DESPERATE MARCH",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [],
+   "stats": [
+      "801 Armor (+3.7% Toughness)"
+   ],
+   "tempered_affixes": [],
+   "type": "Ancestral Mythic Unique Boots"
+}
