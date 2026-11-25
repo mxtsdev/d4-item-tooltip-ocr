@@ -551,8 +551,11 @@ def find_frame_rails(mask):
 				continue
 
 			# The top edge is near where both side rails become active. The
-			# tooltip can be anywhere in a full screenshot.
+			# tooltip can be anywhere in a full screenshot. The item image (such
+			# as an amulet's chain) can cover the top of the right rail, so the
+			# rail that becomes active first also bounds the search.
 			side_start_y = max(int(left_ys[0]), int(right_ys[0]))
+			first_side_start_y = min(int(left_ys[0]), int(right_ys[0]))
 			row_left = max(0, x_left - 12)
 			row_right = min(width, x_right + 13)
 			row_counts = np.count_nonzero(mask[:, row_left:row_right], axis=1)
@@ -575,10 +578,15 @@ def find_frame_rails(mask):
 			# the side rails can have a few pixels of blue trim below the top edge.
 			# Allow a modest lead-in before the side rails, scaled to the rail
 			# separation.
+			# The top border is a thin line (2-4 rows at 3440x1440), while a
+			# background of the same color (such as a dark teal game world)
+			# forms bands dozens of rows tall.
 			search_before = max(32, int(separation * 0.08))
 			search_ahead = max(70, int(separation * 0.20))
+			max_edge_rows = max(8, int(separation * 0.04))
 			candidates = [g for g in horizontal_groups
-				if side_start_y - search_before <= g[0] <= side_start_y + search_ahead]
+				if first_side_start_y - search_before <= g[0] <= side_start_y + search_ahead
+				and g[1] - g[0] + 1 <= max_edge_rows]
 			if not candidates:
 				continue
 			# Prefer an edge at/just after the side rails begin. When the same
