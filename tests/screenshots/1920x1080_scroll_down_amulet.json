@@ -1,0 +1,24 @@
+{
+   "affixes": [
+      "+22 Intelligence",
+      "+7 Life On Hit",
+      "x12% Damage Over Time Multiplier",
+      "+1 to Minion Skills"
+   ],
+   "aspect": "When hit while not Healthy, you form a protective bubble that grants all Players inside Immune. The bubble lasts for 6.0 seconds and can only form once every 90 seconds.",
+   "enchanted_affixes": [],
+   "greater_affixes": [],
+   "item_power": "290",
+   "name": "VIGO'S PROTECTING AMULET",
+   "quality": null,
+   "quality_max": null,
+   "quality_upgraded": null,
+   "sockets": [
+      "+65 Resistance to All Elements"
+   ],
+   "stats": [
+      "53 All Resist"
+   ],
+   "tempered_affixes": [],
+   "type": "Legendary Amulet"
+}
